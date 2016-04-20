@@ -16,11 +16,16 @@ import hashlib
 import itertools
 import math
 import os
+import os.path
 import pickle
+import pwd
 import random
 import re
+import shutil
 import string
+import socket
 import sys
+import tempfile
 import time
 import urllib
 import urllib2
@@ -28,17 +33,21 @@ import urlparse
 import ConfigParser
 import cherrypy
 import jinja2
-
+from optparse import OptionParser
 
 config = ConfigParser.ConfigParser()
 config.read('go.cfg')
 
 cfg_fnDatabase = config.get('goconfig', 'cfg_fnDatabase')
 cfg_urlFavicon = config.get('goconfig', 'cfg_urlFavicon')
-cfg_hostname = config.get('goconfig', 'cfg_hostname')
+try:
+    cfg_hostname = config.get('goconfig', 'cfg_hostname')
+except ConfigParser.NoOptionError:
+    cfg_hostname = socket.gethostbyname(socket.gethostname())
+
 cfg_urlSSO = config.get('goconfig', 'cfg_urlSSO')
 cfg_urlEditBase = "https://" + cfg_hostname
-
+cfg_listenPort = int(config.get('goconfig', 'cfg_listenPort'))
 
 class MyGlobals(object):
     def __init__(self):
@@ -565,7 +574,21 @@ class LinkDatabase:
             return LinkDatabase()
 
     def save(self):
-        pickle.dump(self, file(cfg_fnDatabase, "w"))
+        BACKUPS = 5
+        dbdir = os.path.dirname(cfg_fnDatabase)
+        (fd, tmpname) = tempfile.mkstemp(dir=dbdir)
+        f = os.fdopen(fd, "w")
+        pickle.dump(self, f)
+        f.flush()
+        f.close()
+        for i in reversed(range(BACKUPS - 1)):
+            fromfile = "%s-%s" % (cfg_fnDatabase, i)
+            tofile = "%s-%s" % (cfg_fnDatabase, i + 1)
+            if os.path.exists(fromfile):
+                shutil.move(fromfile, tofile)
+        if os.path.exists(cfg_fnDatabase):
+            shutil.move(cfg_fnDatabase, cfg_fnDatabase + "-0")
+        shutil.move(tmpname, cfg_fnDatabase)
 
     def nextlinkid(self):
         r = self._nextlinkid
@@ -1056,9 +1079,9 @@ class Root:
 env = jinja2.Environment(loader=jinja2.FileSystemLoader("."))
 
 
-def main():
+def main(opts):
     cherrypy.config.update({'server.socket_host': '::',
-                            'server.socket_port': 8080,
+                            'server.socket_port': cfg_listenPort,
                             'request.query_string_encoding': "latin1",
                             })
 
@@ -1072,27 +1095,43 @@ def main():
     # s.subscribe()
 
     # checkpoint the database every 60 seconds
-    cherrypy.process.plugins.BackgroundTask(60, lambda: g_db.save()).start()
-
+    #cherrypy.process.plugins.BackgroundTask(60, lambda: g_db.save()).start()
     file_path = os.getcwd().replace("\\", "/")
     conf = {'/images': {"tools.staticdir.on": True, "tools.staticdir.dir": file_path+"/images"}}
     print "Cherrypy conf: %s" % conf
-    cherrypy.quickstart(Root(), "/", config=conf)
 
+    if opts.runas:
+        # Check for requested user, raises KeyError if they don't exist.
+        pwent = pwd.getpwnam(opts.runas)
+        # Drop privs to requested user, raises OSError if not privileged.
+        cherrypy.process.plugins.DropPrivileges(
+            cherrypy.engine, uid=pwent.pw_uid, gid=pwent.pw_gid).subscribe()
+    cherrypy.quickstart(Root(), "/", config=conf)
 g_db = LinkDatabase.load()
 
 
 if __name__ == "__main__":
 
-    if "import" in sys.argv:
-        g_db._import("newterms.txt")
-
-    elif "export" in sys.argv:
-        g_db._export("newterms.txt")
-
-    elif "dump" in sys.argv:
+    parser = OptionParser()
+    parser.add_option("--import", dest="import_", action="store",
+                      help="Import data from file.")
+    parser.add_option("--export", action="store",
+                      help="Export data to file.")
+    # parser.add_option("-f", "--file", dest="newterms",
+    #                   default="newterms.txt",
+    #                   help="Import/export filename [newterms.txt]")
+    parser.add_option("--dump", dest="dump", action="store_true",
+                      help="Dump the db to stdout.")
+    parser.add_option("--runas", dest="runas",
+                      help="Run as the provided user.")
+    (opts, args) = parser.parse_args()
+    import pdb; pdb.set_trace()
+    if opts.import_:
+        g_db._import(opts.import_)
+    elif opts.export:
+        g_db._export(opts.export)
+    elif opts.dump:
         g_db._dump(sys.stdout)
-
     else:
         env = jinja2.Environment(loader=jinja2.FileSystemLoader("."))
         env.filters['time_t'] = prettytime
@@ -1106,4 +1145,4 @@ if __name__ == "__main__":
         env.globals["str"] = str
         env.globals["list"] = makeList
         env.globals.update(globals())
-        main()
+        main(opts)
