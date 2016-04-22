@@ -1085,13 +1085,13 @@ def main(opts):
                             'request.query_string_encoding': "latin1",
                             })
 
-    cherrypy.https = s = cherrypy._cpserver.Server()
+    # cherrypy.https = s = cherrypy._cpserver.Server()
     # s.socket_host = '::'
     # s.socket_port = 443
-#    s.ssl_module = 'pyopenssl'
+    # s.ssl_module = 'pyopenssl'
     # s.ssl_certificate = 'go.crt'
     # s.ssl_private_key = 'go.key'
-#    s.ssl_certificate_chain = 'gd_bundle.crt'
+    # s.ssl_certificate_chain = 'gd_bundle.crt'
     # s.subscribe()
 
     # checkpoint the database every 60 seconds
@@ -1113,23 +1113,19 @@ g_db = LinkDatabase.load()
 if __name__ == "__main__":
 
     parser = OptionParser()
-    parser.add_option("--import", dest="import_", action="store",
-                      help="Import data from file.")
-    parser.add_option("--export", action="store",
-                      help="Export data to file.")
-    # parser.add_option("-f", "--file", dest="newterms",
-    #                   default="newterms.txt",
-    #                   help="Import/export filename [newterms.txt]")
+    parser.add_option("-i", dest="importfile", action="store",
+                      help="Import a link database from a file.")
+    parser.add_option("-e", action="store", dest="exportfile",
+                      help="Export a link database to a file.")
     parser.add_option("--dump", dest="dump", action="store_true",
                       help="Dump the db to stdout.")
     parser.add_option("--runas", dest="runas",
                       help="Run as the provided user.")
     (opts, args) = parser.parse_args()
-    import pdb; pdb.set_trace()
-    if opts.import_:
-        g_db._import(opts.import_)
-    elif opts.export:
-        g_db._export(opts.export)
+    if opts.importfile:
+        g_db._import(opts.importfile)
+    elif opts.exportfile:
+        g_db._export(opts.exportfile)
     elif opts.dump:
         g_db._dump(sys.stdout)
     else:
