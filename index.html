@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 
-{% set username = getSSOUsername(False) %}
-{% set topLinks = byClicks(g_db.getNonFolders()) %}
-{% set folderLinks = byClicks(g_db.getSpecialLinks()) %}
+{% set username = tools.getSSOUsername(False) %}
+{% set topLinks = tools.byClicks(MYGLOBALS.g_db.getNonFolders()) %}
+{% set folderLinks = tools.byClicks(MYGLOBALS.g_db.getSpecialLinks()) %}
 
 {% from "listinc.html" import renderlink %}
 
@@ -38,7 +38,7 @@
 
 <h4>Lists used in last 30 days</h3>
 <div>
-  {% for LL in g_db.getAllLists() %}
+  {% for LL in MYGLOBALS.g_db.getAllLists() %}
   <div class="cloudli">
     <a style="opacity: {{ LL.opacity(now) }};"
        href="/.{{ LL.name|escapekeyword }}"
