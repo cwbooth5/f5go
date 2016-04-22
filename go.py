@@ -39,7 +39,27 @@ MYGLOBALS.cfg_urlEditBase = "https://" + MYGLOBALS.cfg_hostname
 MYGLOBALS.cfg_listenPort = int(config.get('goconfig', 'cfg_listenPort'))
 
 
-class Root:
+def config_jinja():
+    """Construct a jinja environment, provide filters and globals
+    to templates.
+    """
+    env = jinja2.Environment(loader=jinja2.FileSystemLoader("."))
+    env.filters['time_t'] = tools.prettytime
+    env.filters['int'] = int
+    env.filters['escapekeyword'] = tools.escapekeyword
+    env.globals["enumerate"] = enumerate
+    env.globals["sample"] = random.sample
+    env.globals["len"] = len
+    env.globals["min"] = min
+    env.globals["str"] = str
+    env.globals["list"] = tools.makeList
+    env.globals.update(globals())
+    return env
+
+
+class Root(object):
+    env = config_jinja()
+
     def redirect(self, url, status=307):
         cherrypy.response.status = status
         cherrypy.response.headers["Location"] = url
@@ -145,14 +165,14 @@ class Root:
                     return self.notfound("No match found for '%s'" % keyword)
 
                 # serve up empty fake list
-                return env.get_template('list.html').render(L=ListOfLinks(0), keyword=kw)
+                return env.get_template('list.html').render(L=ListOfLinks(linkid=0), keyword=kw)
             elif len(matches) == 1:
                 R, L, genL = matches[0]  # actual regex, generated link
                 R.clicked()
                 L.clicked()
                 return self.redirect(tools.deampify(genL.url()))
             else:  # len(matches) > 1
-                LL = ListOfLinks(-1)  # -1 means non-editable
+                LL = ListOfLinks(linkid=-1)  # -1 means non-editable
                 LL.links = [genL for R, L, genL in matches]
                 return env.get_template('list.html').render(L=LL, keyword=keyword)
 
@@ -168,7 +188,7 @@ class Root:
 
     @cherrypy.expose
     def special(self):
-        LL = ListOfLinks(-1)
+        LL = ListOfLinks(linkid=-1)
         LL.name = "Smart Keywords"
         LL.links = MYGLOBALS.g_db.getSpecialLinks()
 
@@ -196,7 +216,7 @@ class Root:
     def _add_(self, *args, **kwargs):
         # _add_/tag1/tag2/tag3
         link = Link()
-        link.lists = [MYGLOBALS.g_db.getList(listname, create=False) or ListOfLinks(0, listname) for listname in args]
+        link.lists = [MYGLOBALS.g_db.getList(listname, create=False) or ListOfLinks(linkid=0, name=listname) for listname in args]
         return env.get_template("editlink.html").render(L=link, returnto=(args and args[0] or None), **kwargs)
 
     @cherrypy.expose
@@ -375,6 +395,8 @@ def main(opts):
             cherrypy.engine, uid=pwent.pw_uid, gid=pwent.pw_gid).subscribe()
     cherrypy.quickstart(Root(), "/", config=conf)
 
+# env = jinja2.Environment(loader=jinja2.FileSystemLoader("."))
+env = config_jinja()
 
 if __name__ == "__main__":
 
@@ -395,18 +417,5 @@ if __name__ == "__main__":
     elif opts.dump:
         MYGLOBALS.g_db._dump(sys.stdout)
     else:
-        env = jinja2.Environment(loader=jinja2.FileSystemLoader("."))
-
-        env = jinja2.Environment(loader=jinja2.FileSystemLoader("."))
-        env.filters['time_t'] = tools.prettytime
-        env.filters['int'] = int
-        env.filters['escapekeyword'] = tools.escapekeyword
-
-        env.globals["enumerate"] = enumerate
-        env.globals["sample"] = random.sample
-        env.globals["len"] = len
-        env.globals["min"] = min
-        env.globals["str"] = str
-        env.globals["list"] = tools.makeList
-        env.globals.update(globals())
+        env = config_jinja()
         main(opts)
