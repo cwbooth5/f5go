@@ -18,7 +18,7 @@ import jinja2
 import random
 from optparse import OptionParser
 
-from core import ListOfLinks, Link, MYGLOBALS
+from core import ListOfLinks, Link, MYGLOBALS, InvalidKeyword
 import tools
 
 __author__ = "Saul Pwanson <saul@pwanson.com>"
@@ -27,15 +27,16 @@ __credits__ = "Bill Booth, Bryce Bockman, treebird"
 config = ConfigParser.ConfigParser()
 config.read('go.cfg')
 
-cfg_urlFavicon = config.get('goconfig', 'cfg_urlFavicon')
-try:
-    cfg_hostname = config.get('goconfig', 'cfg_hostname')
-except ConfigParser.NoOptionError:
-    cfg_hostname = socket.gethostbyname(socket.gethostname())
+MYGLOBALS.cfg_urlFavicon = config.get('goconfig', 'cfg_urlFavicon')
 
-cfg_urlSSO = config.get('goconfig', 'cfg_urlSSO')
-cfg_urlEditBase = "https://" + cfg_hostname
-cfg_listenPort = int(config.get('goconfig', 'cfg_listenPort'))
+try:
+    MYGLOBALS.cfg_hostname = config.get('goconfig', 'cfg_hostname')
+except ConfigParser.NoOptionError:
+    MYGLOBALS.cfg_hostname = socket.gethostbyname(socket.gethostname())
+
+MYGLOBALS.cfg_urlSSO = config.get('goconfig', 'cfg_urlSSO')
+MYGLOBALS.cfg_urlEditBase = "https://" + MYGLOBALS.cfg_hostname
+MYGLOBALS.cfg_listenPort = int(config.get('goconfig', 'cfg_listenPort'))
 
 
 class Root:
@@ -54,8 +55,8 @@ class Root:
             scheme = cherrypy.request.scheme
 
         # redirect to our full hostname to get the user's cookies
-        if cherrypy.request.scheme != scheme or cherrypy.request.base.find(cfg_hostname) < 0:
-            fqurl = scheme + "://" + cfg_hostname
+        if cherrypy.request.scheme != scheme or cherrypy.request.base.find(MYGLOBALS.cfg_hostname) < 0:
+            fqurl = scheme + "://" + MYGLOBALS.cfg_hostname
             fqurl += cherrypy.request.path_info
             if cherrypy.request.query_string:
                 fqurl += "?" + cherrypy.request.query_string
@@ -82,7 +83,7 @@ class Root:
     @cherrypy.expose
     def favicon_ico(self):
         cherrypy.response.headers["Cache-control"] = "max-age=172800"
-        return self.redirect(cfg_urlFavicon, status=301)
+        return self.redirect(MYGLOBALS.cfg_urlFavicon, status=301)
 
     @cherrypy.expose
     def bootstrap_css(self):
@@ -94,7 +95,7 @@ class Root:
     def lucky(self):
         luckylink = random.choice(MYGLOBALS.g_db.getNonFolders())
         luckylink.clicked()
-        return self.redirect(deampify(luckylink.url()))
+        return self.redirect(tools.deampify(luckylink.url()))
 
     @cherrypy.expose
     def index(self, **kwargs):
@@ -113,7 +114,7 @@ class Root:
         rest = rest[1:]
 
         forceListDisplay = False
-        action = kwargs.get("action", "list")
+        # action = kwargs.get("action", "list")
 
         if keyword[0] == ".":  # force list page instead of redirect
             forceListDisplay = True
@@ -176,7 +177,7 @@ class Root:
 
     @cherrypy.expose
     def _login_(self, redirect=""):
-        username = tools.getSSOUsername(redirect)
+        tools.getSSOUsername(redirect)
         if redirect:
             return self.redirect(redirect)
         return self.undirect()
@@ -345,12 +346,9 @@ class Root:
         return self.redirect("/variables")
 
 
-env = jinja2.Environment(loader=jinja2.FileSystemLoader("."))
-
-
 def main(opts):
     cherrypy.config.update({'server.socket_host': '::',
-                            'server.socket_port': cfg_listenPort,
+                            'server.socket_port': MYGLOBALS.cfg_listenPort,
                             'request.query_string_encoding': "latin1",
                             })
 
@@ -364,9 +362,9 @@ def main(opts):
     # s.subscribe()
 
     # checkpoint the database every 60 seconds
-    #cherrypy.process.plugins.BackgroundTask(60, lambda: MYGLOBALS.g_db.save()).start()
+    # cherrypy.process.plugins.BackgroundTask(60, lambda: MYGLOBALS.g_db.save()).start()
     file_path = os.getcwd().replace("\\", "/")
-    conf = {'/images': {"tools.staticdir.on": True, "tools.staticdir.dir": file_path+"/images"}}
+    conf = {'/images': {"tools.staticdir.on": True, "tools.staticdir.dir": file_path + "/images"}}
     print "Cherrypy conf: %s" % conf
 
     if opts.runas:
@@ -397,6 +395,7 @@ if __name__ == "__main__":
     elif opts.dump:
         MYGLOBALS.g_db._dump(sys.stdout)
     else:
+        env = jinja2.Environment(loader=jinja2.FileSystemLoader("."))
 
         env = jinja2.Environment(loader=jinja2.FileSystemLoader("."))
         env.filters['time_t'] = tools.prettytime

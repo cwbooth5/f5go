@@ -20,7 +20,7 @@
 <span class="badge badge-important">{{ n }}</span>
 {%- endmacro %}
 
-{% set L = randomlink() %}
+{% set L = tools.randomlink(MYGLOBALS) %}
 {% set idx = 0 %}
 {% set usage = L.usage() %}
 

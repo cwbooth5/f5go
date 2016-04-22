@@ -7,9 +7,11 @@ import sys
 import time
 import cherrypy
 import random
+import re
+import string
+import datetime
 
-from tools import *
-
+import tools
 
 config = ConfigParser.ConfigParser()
 config.read('go.cfg')
@@ -151,7 +153,7 @@ class LinkDatabase:
         return self.linksById.get(int(linkid), None)
 
     def getAllLists(self):
-        return byClicks(self.lists.values())
+        return tools.byClicks(self.lists.values())
 
     def getSpecialLinks(self):
         links = set()
@@ -173,7 +175,7 @@ class LinkDatabase:
         if "\\" in listname:  # is a regex
             return self.getRegex(listname, create)
 
-        sanelistname = sanitary(listname)
+        sanelistname = tools.sanitary(listname)
 
         if not sanelistname:
             raise InvalidKeyword("keyword '%s' not sanitary" % listname)
@@ -227,7 +229,8 @@ class LinkDatabase:
         print "importing from %s" % fn
         with file(fn, "r") as f:
             for l in f.readlines():
-                if not l.strip(): continue
+                if not l.strip():
+                    continue
                 print l.strip()
                 a, b = string.split(l, " ", 1)
                 if a == "regex":
@@ -252,6 +255,7 @@ class LinkDatabase:
 
         self.save()
 
+
 class Clickable:
     def __init__(self):
         self.archivedClicks = 0
@@ -263,7 +267,7 @@ class Clickable:
                                                         self.clickData)
 
     def clickinfo(self):
-        return "%s recent clicks (%s total); last visited %s" % (self.recentClicks, self.totalClicks, prettyday(self.lastClickDay))
+        return "%s recent clicks (%s total); last visited %s" % (self.recentClicks, self.totalClicks, tools.prettyday(self.lastClickDay))
 
     def __getattr__(self, attrname):
         if attrname == "totalClicks":
@@ -283,7 +287,7 @@ class Clickable:
             raise AttributeError(attrname)
 
     def clicked(self, n=1):
-        todayord = today()
+        todayord = tools.today()
         if todayord not in self.clickData:
             # partition clickdata around 30 days ago
             archival = []
@@ -319,7 +323,7 @@ class Link(Clickable):
         Clickable.__init__(self)
 
         self.linkid = linkid
-        self._url = canonicalUrl(url)
+        self._url = tools.canonicalUrl(url)
         self.title = title
 
         self.edits = []    # (edittime, editorname); [-1] is most recent
@@ -389,7 +393,7 @@ class Link(Clickable):
         if self.isGenerative():
             kw = self.mainKeyword()
             if kw:
-                return "/.%s" % escapekeyword(kw.name)
+                return "/.%s" % tools.escapekeyword(kw.name)
             else:
                 return ""
         else:
@@ -402,7 +406,7 @@ class Link(Clickable):
         remainingPath = (keyword or cherrypy.request.path_info).split("/")[2:]
         d = {"*": "/".join(remainingPath), "0": keyword}
         d.update(MYGLOBALS.g_db.variables)
-        d.update(getDictFromCookie("variables"))
+        d.update(tools.getDictFromCookie("variables"))
 
         while True:
             try:
@@ -419,7 +423,7 @@ class Link(Clickable):
         if not goesStraightThere:
             return None
 
-        return byClicks(goesStraightThere)[0]
+        return tools.byClicks(goesStraightThere)[0]
 
     def usage(self):
         kw = self.mainKeyword()
@@ -448,7 +452,6 @@ class ListOfLinks(Link):
                                                                   self.linkid, self.name,
                                                                   self._url, self.links)
 
-
     def isGenerative(self):
         return self.name[-1] == "/"
 
@@ -473,7 +476,7 @@ class ListOfLinks(Link):
         return self.links
 
     def getPopularLinks(self):
-        return byClicks(self.links)
+        return tools.byClicks(self.links)
 
     def getLinks(self, nDaysOfRecentEdits=1):
         earliestRecentEdit = time.time() - nDaysOfRecentEdits * 24 * 3600
@@ -514,7 +517,7 @@ class ListOfLinks(Link):
         return self._url == str(link.linkid) or self.url() == link.url()
 
     def _export(self):
-        if is_int(self._url): # linkid needs to be converted for export
+        if tools.is_int(self._url):  # linkid needs to be converted for export
             L = MYGLOBALS.g_db.getLink(self._url)
             if L and L in self.links:
                 print L
@@ -586,12 +589,12 @@ class RegexList(ListOfLinks):
 class MyGlobals(object):
 
     g_db = LinkDatabase.load()
+
     def __init__(self):
         self.db_hnd = None
 
     def __repr__(self):
         return '%s(hnd=%s)' % (self.__class__.__name__, self.db_hnd)
-
 
     def set_handle(self, hnd):
         self.db_hnd = hnd

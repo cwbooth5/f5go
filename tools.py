@@ -6,10 +6,22 @@ import re
 import string
 import jinja2
 import urllib
+import urllib2
 import cherrypy
 import urlparse
 import time
+import random
 import datetime
+import base64
+import ConfigParser
+
+
+config = ConfigParser.ConfigParser()
+config.read('go.cfg')
+
+cfg_hostname = config.get('goconfig', 'cfg_hostname')
+cfg_urlEditBase = "https://" + cfg_hostname
+cfg_urlSSO = config.get('goconfig', 'cfg_urlSSO')
 
 
 def byClicks(links):
@@ -38,6 +50,7 @@ def canonicalUrl(url):
             return m.group(1)
         return url
 
+
 def deampify(s):
     """Replace '&amp;'' with '&'."""
     return string.replace(s, "&amp;", "&")
@@ -47,8 +60,9 @@ def escapeascii(s):
     return cgi.escape(s).encode("ascii", "xmlcharrefreplace")
 
 
-def randomlink():
-    return random.choice([x for x in MYGLOBALS.g_db.linksById.values() if not x.isGenerative() and x.usage()])
+def randomlink(global_obj):
+    """Take in the class of globals and select a random link from the database."""
+    return random.choice([x for x in global_obj.g_db.linksById.values() if not x.isGenerative() and x.usage()])
 
 
 def today():
@@ -79,19 +93,19 @@ def prettytime(t):
         return 'never'
 
     dt = time.time() - t
-    if dt < 24*3600:
+    if dt < 24 * 3600:
         return 'today'
-    elif dt < 2 * 24*3600:
+    elif dt < 2 * 24 * 3600:
         return 'yesterday'
-    elif dt < 60 * 24*3600:
+    elif dt < 60 * 24 * 3600:
         return '%d days ago' % (dt / (24 * 3600))
     else:
-        return '%d months ago' % (dt / (30 * 24*3600))
+        return '%d months ago' % (dt / (30 * 24 * 3600))
 
 
 def is_int(s):
     try:
-        i = int(s)
+        int(s)
         return True
     except:
         return False
@@ -110,7 +124,7 @@ def getDictFromCookie(cookiename):
     if cookiename not in cherrypy.request.cookie:
         return {}
 
-    v = cherrypy.request.cookie[cookiename].value
+    cherrypy.request.cookie[cookiename].value
     return dict(urlparse.parse_qsl(cherrypy.request.cookie[cookiename].value))
 
 
