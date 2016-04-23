@@ -66,10 +66,7 @@ class LinkDatabase:
         (fd, tmpname) = tempfile.mkstemp(dir=dbdir)
         with open(fd, 'w') as f:
             pickle.dump(self, f)
-        # f = os.fdopen(fd, "w")
-        # pickle.dump(self, f)
-        # f.flush()
-        # f.close()
+
         for i in reversed(range(backupcount - 1)):
             fromfile = "%s-%s" % (cfg_fnDatabase, i)
             tofile = "%s-%s" % (cfg_fnDatabase, i + 1)
@@ -260,7 +257,7 @@ class LinkDatabase:
         self.save()
 
 
-class Clickable:
+class Clickable(object):
     def __init__(self):
         self.archivedClicks = 0
         self.clickData = {}
