@@ -395,7 +395,6 @@ def main(opts):
             cherrypy.engine, uid=pwent.pw_uid, gid=pwent.pw_gid).subscribe()
     cherrypy.quickstart(Root(), "/", config=conf)
 
-# env = jinja2.Environment(loader=jinja2.FileSystemLoader("."))
 env = config_jinja()
 
 if __name__ == "__main__":
