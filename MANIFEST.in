@@ -1,0 +1,3 @@
+# tox needs access to certain files from setup.py
+include README.md
+include VERSION

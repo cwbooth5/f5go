@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% set popularLinks = L.getPopularLinks() %}
-<!-- {% set username = getSSOUsername(False) %} -->
+{% set username = tools.getSSOUsername(False) %}
 
 {% from "listinc.html" import renderlink, clickstats with context %}
 

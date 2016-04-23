@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from "listinc.html" import clickstats %}
 
-<!-- {% set username = getSSOUsername() %} -->
+<!-- {% set username = tools.getSSOUsername() %} -->
 
 {% block title %}{% if L.linkid == 0 %}Add Link{% else %}Edit go link #{{ L.linkid }}{% endif %}{% endblock title %}
 {% block keyword %}{% if L.linkid %}_edit_/{{ L.linkid }}{% else %}_add_{% endif %}{% endblock keyword %}
@@ -52,7 +52,7 @@
      <td>
      {% set listnames = L.listnames() or list(lists) %}
       {% for t in listnames %}
-      {% set K = g_db.getList(t, create=False) %}
+      {% set K = MYGLOBALS.g_db.getList(t, create=False) %}
       {% set flDirect = K and K.goesDirectlyTo(L) %}
        <input type="checkbox" name="lists" checked="checked" value="{{ t }}">
        <a href="/.{{ t|escapekeyword }}">

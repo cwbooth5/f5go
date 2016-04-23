@@ -20,7 +20,7 @@
 <span class="badge badge-important">{{ n }}</span>
 {%- endmacro %}
 
-{% set L = randomlink() %}
+{% set L = tools.randomlink(MYGLOBALS) %}
 {% set idx = 0 %}
 {% set usage = L.usage() %}
 
@@ -232,7 +232,7 @@ link.</p>
      <td>
      {% set listnames = L.listnames() or list(lists) %}
       {% for idx, t in enumerate(listnames) %}
-      {% set K = g_db.getList(t, create=False) %}
+      {% set K = MYGLOBALS.g_db.getList(t, create=False) %}
       {% set flDirect = K and K.goesDirectlyTo(L) %}
         {% if idx == 0 %}{{ badge(3) }}{% endif %}
         <input disabled="true" type="checkbox" name="lists" checked="checked" value="{{ t }}">

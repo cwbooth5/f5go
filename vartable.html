@@ -23,7 +23,7 @@
     </tr>
 
 
-    {% for k, v in g_db.variables.items() %}
+    {% for k, v in MYGLOBALS.g_db.variables.items() %}
     <tr>
       <td><code>{{ "{" ~ k ~ "}" }}</code></td>
       <td><code>{{ v }}</code></td>
@@ -32,5 +32,5 @@
       </td>
     </tr>
     {% endfor %}
-  </table> 
+  </table>
 </form>

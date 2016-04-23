@@ -90,7 +90,7 @@
 {% if username %}
 <a class="pull-right" href="/{{ username }}">logged in as {{ username }}</a>
 {% else %}
-<a class="pull-right" href="/_login_?redirect={{ getCurrentEditableUrlQuoted() }}">login</a>
+<a class="pull-right" href="/_login_?redirect={{ tools.getCurrentEditableUrlQuoted() }}">login</a>
 {% endif %}
 </form>
 </div>
