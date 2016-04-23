@@ -1,3 +1,5 @@
+"""Core elements of the Go Redirector"""
+
 import ConfigParser
 import pickle
 import os
@@ -59,14 +61,16 @@ class LinkDatabase:
             return LinkDatabase()
 
     def save(self):
-        BACKUPS = 5
+        backupcount = 5
         dbdir = os.path.dirname(cfg_fnDatabase)
         (fd, tmpname) = tempfile.mkstemp(dir=dbdir)
-        f = os.fdopen(fd, "w")
-        pickle.dump(self, f)
-        f.flush()
-        f.close()
-        for i in reversed(range(BACKUPS - 1)):
+        with open(fd, 'w') as f:
+            pickle.dump(self, f)
+        # f = os.fdopen(fd, "w")
+        # pickle.dump(self, f)
+        # f.flush()
+        # f.close()
+        for i in reversed(range(backupcount - 1)):
             fromfile = "%s-%s" % (cfg_fnDatabase, i)
             tofile = "%s-%s" % (cfg_fnDatabase, i + 1)
             if os.path.exists(fromfile):
@@ -143,7 +147,7 @@ class LinkDatabase:
 
     def deleteList(self, LL):
         for link in list(LL.links):
-            L.removeLink(link)
+            LL.removeLink(link)
 
         del self.lists[LL.name]
         self.deleteLink(LL)

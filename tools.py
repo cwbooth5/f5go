@@ -1,5 +1,4 @@
-"""Smaller helper functions and tools for Go."""
-
+"""Smaller helper functions and tools for the Go Redirector"""
 
 import cgi
 import re
