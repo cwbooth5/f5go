@@ -8,6 +8,7 @@ import cherrypy
 from cherrypy.test import helper
 import go
 
+
 class BasicGoTest(helper.CPWebCase):
     """Test the web service itself."""
     def setup_server():
@@ -25,6 +26,12 @@ class BasicGoTest(helper.CPWebCase):
         self.getPage('/help')
         self.assertStatus('200 OK')
         self.assertInBody('a mnemonic URL shortener and a link database')
+
+    def test_special_page(self):
+        """200 OK on exposed /special, searching for a string in the HTML body"""
+        self.getPage('/special')
+        self.assertStatus('200 OK')
+        self.assertInBody('Smart Keywords')
 
     def test_add_new_link_statuscode(self):
         """Adding a new link returns a 303."""
