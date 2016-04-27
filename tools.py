@@ -13,6 +13,8 @@ import random
 import datetime
 import base64
 import ConfigParser
+import redis
+from contextlib import contextmanager
 
 
 config = ConfigParser.ConfigParser()
@@ -21,6 +23,12 @@ config.read('go.cfg')
 cfg_hostname = config.get('goconfig', 'cfg_hostname')
 cfg_urlEditBase = "https://" + cfg_hostname
 cfg_urlSSO = config.get('goconfig', 'cfg_urlSSO')
+
+
+@contextmanager
+def redisconn():
+    rconn = redis.Redis(host='localhost', port=6379, db=0)
+    yield rconn
 
 
 def byClicks(links):

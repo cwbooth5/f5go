@@ -12,6 +12,8 @@ import random
 import re
 import string
 import datetime
+import logging
+from logging.config import fileConfig
 
 import tools
 
@@ -19,6 +21,11 @@ config = ConfigParser.ConfigParser()
 config.read('go.cfg')
 
 cfg_fnDatabase = config.get('goconfig', 'cfg_fnDatabase')
+
+
+fileConfig('logconfig.ini')
+log = logging.getLogger(__name__)
+log.debug('redirector starting....')
 
 
 class Error(Exception):
@@ -38,7 +45,8 @@ class LinkDatabase:
         self.variables = {}      # varname -> value
         self.linksById = {}      # link.linkid -> Link
         self.linksByUrl = {}     # link._url -> Link
-        self._nextlinkid = 1
+        self._nextlinkid = None
+        # self._nextlinkid = 1
 
     def __repr__(self):
         return '%s(regexes=%s, lists=%s, vars=%s, byId=%s, byUrl=%s)' % (self.__class__.__name__,
@@ -48,38 +56,58 @@ class LinkDatabase:
                                                                          self.linksByUrl)
 
     @staticmethod
+    def generatefirstid():
+        """Create the first link ID in the database. This increases
+        monotonically.
+        """
+        log.debug('setting initial ID...')
+        with tools.redisconn() as r:
+            nextid = r.getset('godb|nextlinkid', 101)
+        self._nextlinkid = nextid
+
+    @staticmethod
     def load(db=cfg_fnDatabase):
         """Attempt to load the database defined at cfg_fnDatabase. Create a
         new one if the database doesn't already exist.
         """
+
         try:
-            print "Loading DB from %s" % db
+            log.debug("Loading DB from %s" % db)
             return pickle.load(file(db))
         except IOError:
-            print sys.exc_info()[1]
-            print "Creating new database..."
+            # print sys.exc_info()[1]
+            log.error("IOError opening the pickle file", exc_info=True)
+            log.debug("Creating new database...")
             return LinkDatabase()
 
     def save(self):
-        backupcount = 5
-        dbdir = os.path.dirname(cfg_fnDatabase)
-        (fd, tmpname) = tempfile.mkstemp(dir=dbdir)
-        with open(fd, 'w') as f:
-            pickle.dump(self, f)
+        log.debug('starting a save() into %s' % cfg_fnDatabase)
+        ### old code
+        pickle.dump(self, file(cfg_fnDatabase, "w"))
+        ###
+        # backupcount = 5
+        # dbdir = os.path.dirname(cfg_fnDatabase)
+        # (fd, tmpname) = tempfile.mkstemp(dir=dbdir)
+        # with open(fd, 'w') as f:
+        #     pickle.dump(self, f)
 
-        for i in reversed(range(backupcount - 1)):
-            fromfile = "%s-%s" % (cfg_fnDatabase, i)
-            tofile = "%s-%s" % (cfg_fnDatabase, i + 1)
-            if os.path.exists(fromfile):
-                shutil.move(fromfile, tofile)
-        if os.path.exists(cfg_fnDatabase):
-            shutil.move(cfg_fnDatabase, cfg_fnDatabase + "-0")
-        shutil.move(tmpname, cfg_fnDatabase)
+        # for i in reversed(range(backupcount - 1)):
+        #     fromfile = "%s-%s" % (cfg_fnDatabase, i)
+        #     tofile = "%s-%s" % (cfg_fnDatabase, i + 1)
+        #     if os.path.exists(fromfile):
+        #         shutil.move(fromfile, tofile)
+        # if os.path.exists(cfg_fnDatabase):
+        #     shutil.move(cfg_fnDatabase, cfg_fnDatabase + "-0")
+        # shutil.move(tmpname, cfg_fnDatabase)
 
     def nextlinkid(self):
-        r = self._nextlinkid
-        self._nextlinkid += 1
-        return r
+        with tools.redisconn() as r:
+            nextid = r.get('godb|nextlinkid')
+            r.incr('godb|nextlinkid')
+            return nextid
+        # r = self._nextlinkid
+        # self._nextlinkid += 1
+        # return r
 
     def addRegexList(self, regex=None, url=None, desc=None, owner=""):
         r = RegexList(self.nextlinkid(), regex)
@@ -91,22 +119,39 @@ class LinkDatabase:
         self._addList(r)     # add to all indexes
 
     def addLink(self, lists, url, title, owner=""):
+        """This fires only after they enter all new link information and click 'submit link'
+        """
+        log.debug('function addLink(), lists=%s, url=%s, title=%s, owner=%s' % (lists, url, title, owner))
+
         if url in self.linksByUrl:
             raise RuntimeError("existing url")
 
         if type(lists) == str:
             lists = lists.split()
 
-        link = Link(self.nextlinkid(), url, title)
+        ourid = self.nextlinkid()
+        link = Link(ourid, url, title)
 
         for kw in lists:
             self.getList(kw, create=True).addLink(link)
 
         self._addLink(link, owner)
+        # redis variation
+        key = 'godb|link|%s' % (ourid)
+        hsh = {'name': lists[0],
+               'behavior': 'freshest',
+               'title': title,
+               'url': url,
+               'owner': owner}
+
+        with tools.redisconn() as r:
+            r.hmset(key, hsh)
+            # r.expire(key, 300)
 
         return link
 
     def _addLink(self, link, editor=None):
+        log.debug('function _addLink(), link=%s, editor=%s' % (link, editor))
         if editor:
             link.editedBy(editor)
 
@@ -114,15 +159,18 @@ class LinkDatabase:
         self.linksByUrl[link._url] = link
 
     def _changeLinkUrl(self, link, newurl):
+        log.debug('function _changeLinkUrl(), link=%s, newurl=%s' % (link, newurl))
         if link._url in self.linksByUrl:
             del self.linksByUrl[link._url]
         link._url = newurl
         self.linksByUrl[newurl] = link
 
     def _addList(self, LL):
+        log.debug('function _addList(), LL=%s' % LL)
         self.lists[LL.name] = LL
 
     def deleteLink(self, link):
+        log.debug('function deleteLink(), link=%s' % link)
         for LL in list(link.lists):
             LL.removeLink(link)
             if not LL.links:  # auto-delete lists with no links
@@ -139,10 +187,12 @@ class LinkDatabase:
         return "deleted go/%s" % link.linkid
 
     def _removeLinkFromUrls(self, url):
+        log.debug('function _removeLinkFromUrls(), url=%s' % url)
         if url in self.linksByUrl:
             del self.linksByUrl[url]
 
     def deleteList(self, LL):
+        log.debug('function deleteList(), LL=%s' % LL)
         for link in list(LL.links):
             LL.removeLink(link)
 
@@ -151,12 +201,19 @@ class LinkDatabase:
         return "deleted go/%s" % LL.name
 
     def getLink(self, linkid):
-        return self.linksById.get(int(linkid), None)
+        log.debug('function getLink(), linkid=%s' % linkid)
+        old = self.linksById.get(int(linkid), None)
+        # redis variation
+        with tools.redisconn() as r:
+            new = r.get('godb|list|%s' % linkid)
+        return new
 
     def getAllLists(self):
+        log.debug('function getAllLists()')
         return tools.byClicks(self.lists.values())
 
     def getSpecialLinks(self):
+        log.debug('function getSpecialLinks()')
         links = set()
         # TODO, do we have to check the database here??
         for R in self.load().regexes.values():
@@ -167,16 +224,19 @@ class LinkDatabase:
         return list(links)
 
     def getFolders(self):
+        log.debug('function getFolders()')
         return [x for x in self.linksById.values() if x.isGenerative()]
 
     def getNonFolders(self):
+        log.debug('function getNonFolders()')
         return [x for x in self.linksById.values() if not x.isGenerative()]
 
     def getList(self, listname, create=False):
+        log.debug('function getList(), listname=%s, create=%s' % (listname, create))
         if "\\" in listname:  # is a regex
-            return self.getRegex(listname, create)
+            return self.getRegex(listname=listname, create=create)
 
-        sanelistname = tools.sanitary(listname)
+        sanelistname = tools.sanitary(s=listname)
 
         if not sanelistname:
             raise InvalidKeyword("keyword '%s' not sanitary" % listname)
@@ -189,6 +249,7 @@ class LinkDatabase:
         return self.lists[sanelistname]
 
     def getRegex(self, listname, create=False):
+        log.debug('function getRegex(), listname=%s, create=%s' % (listname, create))
         try:
             re.compile(listname)
         except:
@@ -202,6 +263,8 @@ class LinkDatabase:
         return self.regexes[listname]
 
     def renameList(self, LL, newname):
+        log.debug('function renameList(), LL=%s, newname=%s' % (LL, newname))
+
         assert newname not in self.lists
         oldname = LL.name
         self.lists[newname] = self.lists[oldname]
@@ -210,7 +273,7 @@ class LinkDatabase:
         return "renamed go/%s to go/%s" % (oldname, LL.name)
 
     def _export(self, fn):
-        print "exporting to %s" % fn
+        log.debug("exporting to %s" % fn)
         with file(fn, "w") as f:
             for k, v in self.variables.items():
                 f.write("variable %s %s\n" % (k, v))
@@ -227,12 +290,12 @@ class LinkDatabase:
             fh.write(link._dump() + "\n")
 
     def _import(self, fn):
-        print "importing from %s" % fn
+        log.debug("importing from %s" % fn)
         with file(fn, "r") as f:
             for l in f.readlines():
                 if not l.strip():
                     continue
-                print l.strip()
+                log.debug(l.strip())
                 a, b = string.split(l, " ", 1)
                 if a == "regex":
                     R = RegexList(self.nextlinkid())
@@ -252,7 +315,7 @@ class LinkDatabase:
                     k, v = b.split(" ", 1)
                     self.variables[k] = v.strip()
 
-        assert self._nextlinkid == max(self.linksById.keys()) + 1
+        # assert self._nextlinkid == max(self.linksById.keys()) + 1
 
         self.save()
 
@@ -268,7 +331,12 @@ class Clickable(object):
                                                         self.clickData)
 
     def clickinfo(self):
-        return "%s recent clicks (%s total); last visited %s" % (self.recentClicks, self.totalClicks, tools.prettyday(self.lastClickDay))
+
+        info = "%s recent clicks (%s total); last visited %s" % (self.recentClicks,
+                                                                 self.totalClicks,
+                                                                 tools.prettyday(self.lastClickDay))
+        log.debug('Clickable.clickinfo() %s' % info)
+        return info
 
     def __getattr__(self, attrname):
         if attrname == "totalClicks":
@@ -348,15 +416,18 @@ class Link(Clickable):
         c = Clickable._export(self)
         d = ",".join(["%d/%s" % x for x in self.edits]) or "None"
         e = self.title
-
-        return "link %s %s %s %s %s" % (a, b, c, d, e)
+        # link freshest None 0,{} None
+        final = "link %s %s %s %s %s" % (a, b, c, d, e)
+        log.debug('in Link._export, %s' % final)
+        return final
 
     def _dump(self):
         a = "|".join([x.name for x in self.lists]) or "None"
         b = self.title
         c = self._url
-
-        return "%s\t%s\t%s" % (a, b, c)
+        final = "%s\t%s\t%s" % (a, b, c)
+        log.debug('in Link._dump, string=%s', final)
+        return final
 
     def _import(self, line):
         self._url, lists, clickdata, edits, title = line.split(" ", 4)
@@ -382,13 +453,26 @@ class Link(Clickable):
             self.edits = [(float(x[0]), x[1]) for x in edits]
 
     def editedBy(self, editor):
-        self.edits.append((time.time(), editor))
+        """When a link is edited, add a tuple to the list of edits."""
+        log.debug('function editedBy, linkid=%s, editor=%s' % (self.linkid, editor))
+        timenow = time.time()
+        self.edits.append((timenow, editor))
+        # redis implementation - list
+        key = 'godb|edits|%s' % self.linkid
+        with tools.redisconn() as r:
+            r.lpush(key, '%s|%s' % (timenow, editor))
 
     def lastEdit(self):
         if not self.edits:
             return (0, "")
-
-        return self.edits[-1]
+        linklastedit = self.edits[-1]
+        log.debug('LastEdit=%s' % str(linklastedit))
+        # redis alternative
+        key = 'godb|edits|%s' % self.linkid
+        with tools.redisconn() as r:
+            edittime, editor = r.lindex(key, -1).split('|')   # last item on the list
+            linklastedit = (float(edittime), editor)
+        return linklastedit
 
     def href(self):
         if self.isGenerative():
@@ -404,11 +488,11 @@ class Link(Clickable):
                 return self._url
 
     def url(self, keyword=None, args=None):
+        log.debug('in url() function...')
         remainingPath = (keyword or cherrypy.request.path_info).split("/")[2:]
         d = {"*": "/".join(remainingPath), "0": keyword}
         d.update(MYGLOBALS.g_db.variables)
         d.update(tools.getDictFromCookie("variables"))
-
         while True:
             try:
                 return string.Formatter().vformat(self._url, args or remainingPath, d)
@@ -521,15 +605,16 @@ class ListOfLinks(Link):
         if tools.is_int(self._url):  # linkid needs to be converted for export
             L = MYGLOBALS.g_db.getLink(self._url)
             if L and L in self.links:
-                print L
+                log.debug(L)
                 self._url = L._url
             else:
-                print "fixing unknown dest linkid for", self.name
+                log.debug("fixing unknown dest linkid for %s" % self.name)
                 self._url = "list"
 
         return ("list %s " % self.name) + Link._export(self)
 
     def _import(self, line):
+        log.debug('ListOfLinks._import, line=%s' % line)
         self.name, _, rest = line.split(" ", 2)
         assert _ == "link"
         MYGLOBALS.g_db._addList(self)

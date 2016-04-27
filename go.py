@@ -18,7 +18,7 @@ import jinja2
 import random
 from optparse import OptionParser
 
-from core import ListOfLinks, Link, MYGLOBALS, InvalidKeyword
+from core import ListOfLinks, Link, MYGLOBALS, InvalidKeyword, log
 import tools
 
 __author__ = "Saul Pwanson <saul@pwanson.com>"
@@ -128,6 +128,7 @@ class Root(object):
 
     @cherrypy.expose
     def default(self, *rest, **kwargs):
+        log.debug('in /default, rest=%s, kwargs=%s' % (rest, kwargs))
         self.redirectIfNotFullHostname()
 
         keyword = rest[0]
@@ -204,6 +205,7 @@ class Root(object):
 
     @cherrypy.expose
     def _link_(self, linkid):
+        log.debug('in /_link_, linkid=%d' % linkid)
         link = MYGLOBALS.g_db.getLink(linkid)
         if link:
             link.clicked()
@@ -214,6 +216,7 @@ class Root(object):
 
     @cherrypy.expose
     def _add_(self, *args, **kwargs):
+        log.debug('in /_add_, args=%s, kwargs=%s' % (args, kwargs))
         # _add_/tag1/tag2/tag3
         link = Link()
         link.lists = [MYGLOBALS.g_db.getList(listname, create=False) or ListOfLinks(linkid=0, name=listname) for listname in args]
@@ -221,6 +224,7 @@ class Root(object):
 
     @cherrypy.expose
     def _edit_(self, linkid, **kwargs):
+        log.debug('in /_edit_, linkid=%s, kwargs=%s' % (linkid, kwargs))
         link = MYGLOBALS.g_db.getLink(linkid)
         if link:
             return env.get_template("editlink.html").render(L=link, **kwargs)
@@ -230,6 +234,7 @@ class Root(object):
 
     @cherrypy.expose
     def _editlist_(self, keyword, **kwargs):
+        log.debug('in /_editlist_, keyword=%s, kwargs=%s' % (keyword, kwargs))
         K = MYGLOBALS.g_db.getList(keyword, create=False)
         if not K:
             K = ListOfLinks()
@@ -237,6 +242,7 @@ class Root(object):
 
     @cherrypy.expose
     def _setbehavior_(self, keyword, **kwargs):
+        log.debug('in /_setbehavior_, keyword=%s, kwargs=%s'(keyword, kwargs))
         K = MYGLOBALS.g_db.getList(keyword, create=False)
 
         if "behavior" in kwargs:
@@ -247,13 +253,15 @@ class Root(object):
     @cherrypy.expose
     def _delete_(self, linkid, returnto=""):
         # username = getSSOUsername()
-
+        log.debug('in /_delete_, linkid=%s, returnto=%s' % (linkid, returnto))
         MYGLOBALS.g_db.deleteLink(MYGLOBALS.g_db.getLink(linkid))
 
         return self.redirect("/." + returnto)
 
     @cherrypy.expose
     def _modify_(self, **kwargs):
+        log.debug('in /_modify_, kwargs=%s' % kwargs)
+
         username = tools.getSSOUsername()
 
         linkid = kwargs.get("linkid", "")
@@ -335,6 +343,7 @@ class Root(object):
 
     @cherrypy.expose
     def _internal_(self, *args, **kwargs):
+        log.debug('in /_internal_, args=%s, kwargs=%s' % (args, kwargs))
         # check, toplinks, special, dumplist
         return env.get_template(args[0] + ".html").render(**kwargs)
 
@@ -352,6 +361,7 @@ class Root(object):
 
     @cherrypy.expose
     def _override_vars_(self, **kwargs):
+        log.debug('in /_override_vars_, kwargs=%s' % kwargs)
         cherrypy.response.cookie["variables"] = urllib.urlencode(kwargs)
         cherrypy.response.cookie["variables"]["max-age"] = 10 * 365 * 24 * 3600
 
@@ -359,6 +369,7 @@ class Root(object):
 
     @cherrypy.expose
     def _set_variable_(self, varname="", value=""):
+        log.debug('in /_set_variable_, varname=%s, value=%s' % (varname,  value))
         if varname and value:
             MYGLOBALS.g_db.variables[varname] = value
             MYGLOBALS.g_db.save()
