@@ -64,8 +64,10 @@ class LinkDatabase:
         backupcount = 5
         dbdir = os.path.dirname(cfg_fnDatabase)
         (fd, tmpname) = tempfile.mkstemp(dir=dbdir)
-        with open(fd, 'w') as f:
-            pickle.dump(self, f)
+        f = os.fdopen(fd, 'w')
+        pickle.dump(self, f)
+        f.flush()
+        f.close()
 
         for i in reversed(range(backupcount - 1)):
             fromfile = "%s-%s" % (cfg_fnDatabase, i)
