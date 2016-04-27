@@ -55,8 +55,7 @@ class LinkDatabase:
                                                                          self.linksById,
                                                                          self.linksByUrl)
 
-    @staticmethod
-    def generatefirstid():
+    def generatefirstid(self):
         """Create the first link ID in the database. This increases
         monotonically.
         """
@@ -82,23 +81,22 @@ class LinkDatabase:
 
     def save(self):
         log.debug('starting a save() into %s' % cfg_fnDatabase)
-        ### old code
-        pickle.dump(self, file(cfg_fnDatabase, "w"))
-        ###
-        # backupcount = 5
-        # dbdir = os.path.dirname(cfg_fnDatabase)
-        # (fd, tmpname) = tempfile.mkstemp(dir=dbdir)
-        # with open(fd, 'w') as f:
-        #     pickle.dump(self, f)
+        backupcount = 5
+        dbdir = os.path.dirname(cfg_fnDatabase)
+        (fd, tmpname) = tempfile.mkstemp(dir=dbdir)
+        f = os.fdopen(fd, 'w')
+        pickle.dump(self, f)
+        f.flush()
+        f.close()
 
-        # for i in reversed(range(backupcount - 1)):
-        #     fromfile = "%s-%s" % (cfg_fnDatabase, i)
-        #     tofile = "%s-%s" % (cfg_fnDatabase, i + 1)
-        #     if os.path.exists(fromfile):
-        #         shutil.move(fromfile, tofile)
-        # if os.path.exists(cfg_fnDatabase):
-        #     shutil.move(cfg_fnDatabase, cfg_fnDatabase + "-0")
-        # shutil.move(tmpname, cfg_fnDatabase)
+        for i in reversed(range(backupcount - 1)):
+            fromfile = "%s-%s" % (cfg_fnDatabase, i)
+            tofile = "%s-%s" % (cfg_fnDatabase, i + 1)
+            if os.path.exists(fromfile):
+                shutil.move(fromfile, tofile)
+        if os.path.exists(cfg_fnDatabase):
+            shutil.move(cfg_fnDatabase, cfg_fnDatabase + "-0")
+        shutil.move(tmpname, cfg_fnDatabase)
 
     def nextlinkid(self):
         with tools.redisconn() as r:
