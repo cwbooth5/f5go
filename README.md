@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/moronbros/f5go.svg?branch=develop)](https://travis-ci.org/moronbros/f5go)
+[![Build Status](https://travis-ci.org/moronbros/f5go.svg?branch=develop)](https://travis-ci.org/moronbros/f5go) [![Coverage Status](https://coveralls.io/repos/github/moronbros/f5go/badge.svg?branch=master)](https://coveralls.io/github/moronbros/f5go?branch=master)
 
 # The F5 Go Redirector
 
