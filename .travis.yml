@@ -10,7 +10,6 @@ python:
 install:
   - pip install .
   - pip install -r requirements.txt
-  - pip install tox
 # command to run tests
 script: tox
 
