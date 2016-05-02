@@ -5,7 +5,6 @@ import pickle
 import os
 import shutil
 import tempfile
-import sys
 import time
 import cherrypy
 import random
@@ -74,7 +73,6 @@ class LinkDatabase:
             log.debug("Loading DB from %s" % db)
             return pickle.load(file(db))
         except IOError:
-            # print sys.exc_info()[1]
             log.error("IOError opening the pickle file", exc_info=True)
             log.debug("Creating new database...")
             return LinkDatabase()
