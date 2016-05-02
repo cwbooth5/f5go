@@ -12,3 +12,9 @@ install:
   - pip install -r requirements.txt
 # command to run tests
 script: tox
+
+# whitelist to run on specific branches
+branches:
+  only:
+    - master
+    - develop
