@@ -1,3 +1,4 @@
+[![Build Status](https://travis-ci.org/moronbros/f5go.svg?branch=develop)](https://travis-ci.org/moronbros/f5go)
 
 # The F5 Go Redirector
 
