@@ -18,3 +18,7 @@ branches:
   only:
     - master
     - develop
+
+# For redis integration, the server needs to be running at test-time.
+services:
+  - redis-server
