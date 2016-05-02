@@ -21,6 +21,10 @@ class BasicGoTest(helper.CPWebCase):
 
     setup_server = staticmethod(setup_server)
 
+    def test_index_page(self):
+        self.getPage('/')
+        self.assertStatus('303 See Other')
+
     def test_help_page(self):
         """200 OK on help.html, searching for a string in the HTML body"""
         self.getPage('/help')

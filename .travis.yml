@@ -11,7 +11,7 @@ install:
   - pip install .
   - pip install -r requirements.txt
 # command to run tests
-script: tox
+script: tox -vvv
 
 # whitelist to run on specific branches
 branches:
