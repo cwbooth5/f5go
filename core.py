@@ -467,8 +467,13 @@ class Link(Clickable):
         # redis alternative
         key = 'godb|edits|%s' % self.linkid
         with tools.redisconn() as r:
-            edittime, editor = r.lindex(key, -1).split('|')   # last item on the list
-            linklastedit = (float(edittime), editor)
+            try:
+                edittime, editor = r.lindex(name=key, index=-1).split('|')   # last item on the list
+            except AttributeError:
+                # r.lindex(name=key, index=-1) returned None
+                return (0, "")
+            else:
+                linklastedit = (float(edittime), editor)
         return linklastedit
 
     def href(self):
