@@ -61,7 +61,13 @@ def escapeascii(s):
 
 def randomlink(global_obj):
     """Take in the class of globals and select a random link from the database."""
-    return random.choice([x for x in global_obj.g_db.linksById.values() if not x.isGenerative() and x.usage()])
+    try:
+        selection = random.choice([x for x in global_obj.g_db.linksById.values() if not x.isGenerative() and x.usage()])
+    except IndexError:
+        # Nothing there yet, just return None and move on.
+        return None
+    else:
+        return selection
 
 
 def today():
