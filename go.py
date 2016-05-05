@@ -242,7 +242,7 @@ class Root(object):
 
     @cherrypy.expose
     def _setbehavior_(self, keyword, **kwargs):
-        log.debug('in /_setbehavior_, keyword=%s, kwargs=%s'(keyword, kwargs))
+        log.debug('in /_setbehavior_, keyword=%s, kwargs=%s' % (keyword, kwargs))
         K = MYGLOBALS.g_db.getList(keyword, create=False)
 
         if "behavior" in kwargs:
