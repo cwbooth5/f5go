@@ -44,8 +44,7 @@ class LinkDatabase:
         self.variables = {}      # varname -> value
         self.linksById = {}      # link.linkid -> Link
         self.linksByUrl = {}     # link._url -> Link
-        self._nextlinkid = None
-        # self._nextlinkid = 1
+        self._nextlinkid = self.nextlinkid()
 
     def __repr__(self):
         return '%s(regexes=%s, lists=%s, vars=%s, byId=%s, byUrl=%s)' % (self.__class__.__name__,
@@ -53,15 +52,6 @@ class LinkDatabase:
                                                                          self.variables,
                                                                          self.linksById,
                                                                          self.linksByUrl)
-
-    def generatefirstid(self):
-        """Create the first link ID in the database. This increases
-        monotonically.
-        """
-        log.debug('setting initial ID...')
-        with tools.redisconn() as r:
-            nextid = r.getset('godb|nextlinkid', 101)
-        self._nextlinkid = nextid
 
     @staticmethod
     def load(db=cfg_fnDatabase):
@@ -98,13 +88,18 @@ class LinkDatabase:
         shutil.move(tmpname, cfg_fnDatabase)
 
     def nextlinkid(self):
+        """Look at the attached redis db for a link ID. Initialize with that.
+        Otherwise, it needs to be created so initialize it at 1.
+        """
         with tools.redisconn() as r:
             nextid = r.get('godb|nextlinkid')
+            if nextid is None:
+                # Nothing in redis. Set it at 1, return 1.
+                nextid = r.set('godb|nextlinkid', 1)
+                return 1
+
             r.incr('godb|nextlinkid')
             return nextid
-        # r = self._nextlinkid
-        # self._nextlinkid += 1
-        # return r
 
     def addRegexList(self, regex=None, url=None, desc=None, owner=""):
         r = RegexList(self.nextlinkid(), regex)
