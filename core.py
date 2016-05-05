@@ -55,7 +55,7 @@ class LinkDatabase:
         try:
             print "Loading DB from %s" % db
             return pickle.load(file(db))
-        except IOError:
+        except (IOError, EOFError):
             print sys.exc_info()[1]
             print "Creating new database..."
             return LinkDatabase()

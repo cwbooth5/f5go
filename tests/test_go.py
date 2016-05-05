@@ -6,8 +6,12 @@ To run these: run 'tox' in the root project directory.
 import pytest
 import cherrypy
 from cherrypy.test import helper
-import go
+import sys
+import os
 
+sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../")
+
+import go
 
 class BasicGoTest(helper.CPWebCase):
     """Test the web service itself."""
@@ -16,10 +20,15 @@ class BasicGoTest(helper.CPWebCase):
         class Root(go.Root):
             """Use a non-standard port, start the server."""
             # cherrypy.config.update({'server.socket_port': 9090})
-            cherrypy.config.update({'port': 9090})
+            cherrypy.config.update({'port': 35900})
         cherrypy.tree.mount(Root())
 
     setup_server = staticmethod(setup_server)
+
+    def test_index_page(self):
+        self.getPage('/')
+        # pytest.set_trace()
+        self.assertStatus('303 See Other')
 
     def test_help_page(self):
         """200 OK on help.html, searching for a string in the HTML body"""

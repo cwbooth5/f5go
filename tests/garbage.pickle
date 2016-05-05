@@ -1,0 +1,3 @@
+This is the contents of garbage.pickle, which is meant to appear like a serialized python file, but instead it's garbage.
+
+This is useful for testing bad input/truncated/malformed pickle files.

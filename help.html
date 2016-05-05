@@ -20,11 +20,19 @@
 <span class="badge badge-important">{{ n }}</span>
 {%- endmacro %}
 
-{% set L = tools.randomlink(MYGLOBALS) %}
-{% set idx = 0 %}
-{% set usage = L.usage() %}
-
 {% block body %}
+{% set L = tools.randomlink(MYGLOBALS) %}
+{% if not L %}
+
+  <p>This is a mnemonic URL shortener and a link database.</p>
+  <p>No link database has been loaded. Either make a redirect or load a DB for help.</p>
+
+{% else %}
+
+  {% set idx = 0 %}
+  {% set usage = L.usage() %}
+
+
 
 <div class="row-fluid">
 <div class="span8 offset2">
@@ -274,5 +282,7 @@ caution!</p>
 </table>
 </div>
 </div>
+
+{% endif %}
 
 {% endblock body %}
