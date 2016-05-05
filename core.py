@@ -19,7 +19,8 @@ import tools
 config = ConfigParser.ConfigParser()
 config.read('go.cfg')
 
-cfg_fnDatabase = config.get('goconfig', 'cfg_fnDatabase')
+# cfg_fnDatabase = config.get('goconfig', 'cfg_fnDatabase')
+cfg_fnDatabase = 'redis'
 
 
 fileConfig('logconfig.ini')
@@ -59,6 +60,9 @@ class LinkDatabase:
         new one if the database doesn't already exist.
         """
 
+        if cfg_fnDatabase == 'redis':
+            return True
+
         try:
             log.debug("Loading DB from %s" % db)
             return pickle.load(file(db))
@@ -91,6 +95,7 @@ class LinkDatabase:
         """Look at the attached redis db for a link ID. Initialize with that.
         Otherwise, it needs to be created so initialize it at 1.
         """
+        # TODO: change to just incr() since that makes new keys.
         with tools.redisconn() as r:
             nextid = r.get('godb|nextlinkid')
             if nextid is None:
@@ -127,28 +132,40 @@ class LinkDatabase:
         for kw in lists:
             self.getList(kw, create=True).addLink(link)
 
-        self._addLink(link, owner)
+        # TODO: commented this next line out to cut out _addLink() completely.
+        # self._addLink(link=link, editor=owner)
         # redis variation
         key = 'godb|link|%s' % (ourid)
         hsh = {'name': lists[0],
                'behavior': 'freshest',
                'title': title,
                'url': url,
-               'owner': owner}
+               'owner': owner,
+               'clicks': 1}
 
         with tools.redisconn() as r:
             r.hmset(key, hsh)
-            # r.expire(key, 300)
+            r.expire(key, 30000)
 
         return link
 
-    def _addLink(self, link, editor=None):
-        log.debug('function _addLink(), link=%s, editor=%s' % (link, editor))
-        if editor:
-            link.editedBy(editor)
+    # def _addLink(self, link, editor=None):
+    #     """This is hit when Submit Link is hit in the GUI."""
+    #     log.debug('function _addLink(), link=%s, editor=%s' % (link, editor))
+    #     if editor:
+    #         link.editedBy(editor=editor)
 
-        self.linksById[link.linkid] = link
-        self.linksByUrl[link._url] = link
+    #     # old
+    #     self.linksById[link.linkid] = link
+
+    #     # _url is u'http://www.hurr.com'
+    #     # link is a Link() object.
+    #     self.linksByUrl[link._url] = link
+    #     import pdb; pdb.set_trace()
+
+    #     # new
+    #     # with tools.redisconn() as r:
+
 
     def _changeLinkUrl(self, link, newurl):
         log.debug('function _changeLinkUrl(), link=%s, newurl=%s' % (link, newurl))
@@ -535,6 +552,8 @@ class ListOfLinks(Link):
                                                                   self._url, self.links)
 
     def isGenerative(self):
+        """Does it end in a slash?"""
+        import pdb; pdb.set_trace()
         return self.name[-1] == "/"
 
     def usage(self):
