@@ -517,7 +517,12 @@ class ListOfLinks(Link):
             return "/_link_/" + self._url
 
     def goesDirectlyTo(self, link):
-        return self._url == str(link.linkid) or self.url() == link.url()
+        try:
+            result = self._url == str(link.linkid) or self.url() == link.url()
+        except AttributeError:
+            return False
+        else:
+            return result
 
     def _export(self):
         if tools.is_int(self._url):  # linkid needs to be converted for export
