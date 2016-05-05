@@ -72,7 +72,8 @@ class LinkDatabase:
         try:
             log.debug("Loading DB from %s" % db)
             return pickle.load(file(db))
-        except IOError:
+
+        except (IOError, EOFError):
             log.error("IOError opening the pickle file", exc_info=True)
             log.debug("Creating new database...")
             return LinkDatabase()
@@ -595,7 +596,12 @@ class ListOfLinks(Link):
             return "/_link_/" + self._url
 
     def goesDirectlyTo(self, link):
-        return self._url == str(link.linkid) or self.url() == link.url()
+        try:
+            result = self._url == str(link.linkid) or self.url() == link.url()
+        except AttributeError:
+            return False
+        else:
+            return result
 
     def _export(self):
         if tools.is_int(self._url):  # linkid needs to be converted for export

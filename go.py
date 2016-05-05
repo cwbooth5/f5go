@@ -404,6 +404,7 @@ def main(opts):
         # Drop privs to requested user, raises OSError if not privileged.
         cherrypy.process.plugins.DropPrivileges(
             cherrypy.engine, uid=pwent.pw_uid, gid=pwent.pw_gid).subscribe()
+    cherrypy.config.update(conf)  # hack? TODO
     cherrypy.quickstart(Root(), "/", config=conf)
 
 env = config_jinja()

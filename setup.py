@@ -1,4 +1,4 @@
-"""Setup module for xdfile"""
+"""Setup module for The Go Redirector"""
 
 # Always prefer setuptools over distutils
 from setuptools import find_packages, setup
