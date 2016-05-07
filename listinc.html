@@ -1,13 +1,13 @@
-{% macro editlink(link, username) -%}
+{% macro m_editlink(link, username) -%}
     <div class="pull-right">
       <a
     {% if link.edits %}
-      {% set lastEditTime, lastEditName = link.lastEdit() %}
+      {% set lastEditName, lastEditTime = tools.getedits(link.linkid, mostrecent=True) %}
       title="edited {{ lastEditTime|time_t }} by {{ lastEditName }}"
     {% else %}
       title="edit"
     {% endif %}
-    href="/_edit_/{{ link.linkid }}{% if username %}?returnto={{ keyword }}{% endif %}"><img border="0" src="/images/edititem.gif"></a>
+      href="/_edit_/{{ link.linkid }}{% if username %}?returnto={{ keyword }}{% endif %}"><img border="0" src="/images/edititem.gif"></a>
     </div>
 {%- endmacro %}
 
@@ -21,7 +21,7 @@
 
 
 
-{% macro linkrender(idx, link, username)-%}
+{% macro m_linkrender(idx, link, username)-%}
 <tr>
 <td>
 <b>
@@ -38,17 +38,17 @@
 
       </div>
 
-      <div class="shallow span8">{{ link.title or link.url|truncate(80, True) }}</div>
+      <div class="shallow span8">{{ link.title or link.url }}</div>
     </a>
   </div>
     <div class="fineprint shallow meta text">
-      derp, TODO
+      TODO!
     </div>
 
 
 </div>
 </td>
-
+  <td>{{ m_editlink(link, username) }}</td>
 </tr>
 {%- endmacro %}
 
@@ -91,7 +91,7 @@
 
 </div>
 </td>
-  <td>{{ editlink(link, username) }}</td>
+
 </tr>
 {%- endmacro %}
 

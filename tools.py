@@ -36,22 +36,68 @@ def clickstats(linkname):
     pass
 
 
+def getedits(link_id, mostrecent=False):
+    """Return a list of tuples for all edits on a given link ID. Return the most recent
+    edit if mostrecent == True.
+    """
+    with redisconn() as r:
+        if mostrecent:
+            # just one tuple to return
+            return r.zrange('godb|edits|%s' % link_id, -1, -1, withscores=True)[0]
+        # return the whole list of tuples
+        return r.zrange('godb|edits|%s' % link_id, 0, -1, withscores=True)
+
+
+
 def getlink(linkname):
     """Snag link data using only the name. Return a named tuple."""
 
-    Link = namedtuple('Link', 'linkid url title owner name clicks')
+    Link = namedtuple('Link', 'linkid url title owner name clicks edits')
 
     # TODO: inefficient. need to really target it first, not iterate through everything.
     with redisconn() as r:
         all_links = r.keys('godb|link|*')
         for target in all_links:
             if r.hget(target, 'name') == linkname:
-                vals = r.hgetall(target)
-                lid = target.split('|')[-1]
+                vals = r.hgetall(target)  # Grab all keys in the hash.
+                lid = target.split('|')[-1]  # This is the link ID off the end of the hash name.
                 ourlink = Link(linkid=lid, url=vals['url'], title=vals['title'],
-                               owner=vals['owner'], name=vals['name'], clicks=vals['clicks'])
-    return ourlink
+                               owner=vals['owner'], name=vals['name'], clicks=vals['clicks'], edits=getedits(lid))
+                return ourlink
 
+
+def editlink(linkid, username, prune=None, **kwargs):
+    """Modify a link.
+    When a link gets edited, one of many fields can be changed.
+    - title
+    - url
+    - list membership
+
+    Other stuff can change:
+    - the link can be deleted.
+    - The link can be added to another list.
+    - The link can be removed from a list. (uncheck the checkbox)
+    """
+    epoch_time = float(time.time())
+    with tools.redisconn() as r:
+        r.zadd('godb|edits|%s' % linkid, username, epoch_time)
+
+        name = 'godb|link|%s' % linkid
+        if kwargs.get('title'):
+            r.hset(name=name, key='title', value=kwargs.get('title'))
+        if kwargs.get('url'):
+            r.hset(name=name, key='url', value=kwargs.get('url'))
+
+        # lists to remove this link from, if they asked for it
+        if prune:
+            assert isinstance(prune, list), 'A list must be provided here!'
+            for listname in prune:
+                # list of names is passed in.
+                r.srem('godb|list|%s' % listname, linkid)
+
+        # If they filled in a list to add this link to, add it to that list (if it exists)
+        if not r.sismember('godb|list|%s' % listname, linkid):
+            r.sadd('godb|list|%s' % listname, linkid)
 
 
 
@@ -68,6 +114,7 @@ def toplinks(count=None):
     return the number of links they ask for, or everything if they don't specify.
     """
     # list of dicts
+    print count
     blabber = []
     with redisconn() as r:
         allkeys = r.keys('godb|listmeta|*')
@@ -76,6 +123,8 @@ def toplinks(count=None):
             listclicks = r.hget(key, 'clicks')
             blabber.append((listname, int(listclicks)))
 
+    if count:
+        return sorted(blabber, key=lambda tup: tup[1])[:count]
     return sorted(blabber, key=lambda tup: tup[1])
 
 print toplinks()
@@ -190,7 +239,7 @@ def prettyday(d):
 def prettytime(t):
     if t < 100000:
         return 'never'
-
+    # dt = time.time()
     dt = time.time() - t
     if dt < 24 * 3600:
         return 'today'
