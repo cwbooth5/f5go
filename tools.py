@@ -15,20 +15,106 @@ import base64
 import ConfigParser
 import redis
 from contextlib import contextmanager
+from collections import namedtuple
 
 
-config = ConfigParser.ConfigParser()
-config.read('go.cfg')
+# config = ConfigParser.ConfigParser()
+# config.read('go.cfg')
 
-cfg_hostname = config.get('goconfig', 'cfg_hostname')
-cfg_urlEditBase = "https://" + cfg_hostname
-cfg_urlSSO = config.get('goconfig', 'cfg_urlSSO')
+# cfg_hostname = config.get('goconfig', 'cfg_hostname')
+# cfg_urlEditBase = "https://" + cfg_hostname
+# cfg_urlSSO = config.get('goconfig', 'cfg_urlSSO')
 
 
 @contextmanager
 def redisconn():
     rconn = redis.Redis(host='localhost', port=6379, db=0)
     yield rconn
+
+
+def clickstats(linkname):
+    pass
+
+
+def getlink(linkname):
+    """Snag link data using only the name. Return a named tuple."""
+
+    Link = namedtuple('Link', 'linkid url title owner name clicks')
+
+    # TODO: inefficient. need to really target it first, not iterate through everything.
+    with redisconn() as r:
+        all_links = r.keys('godb|link|*')
+        for target in all_links:
+            if r.hget(target, 'name') == linkname:
+                vals = r.hgetall(target)
+                lid = target.split('|')[-1]
+                ourlink = Link(linkid=lid, url=vals['url'], title=vals['title'],
+                               owner=vals['owner'], name=vals['name'], clicks=vals['clicks'])
+    return ourlink
+
+
+
+
+
+
+def toplinks(count=None):
+    """Return a sorted list of all links by number of clicks.
+    returns:
+    title
+    linkid
+    url
+    memberof lists
+
+    return the number of links they ask for, or everything if they don't specify.
+    """
+    # list of dicts
+    blabber = []
+    with redisconn() as r:
+        allkeys = r.keys('godb|listmeta|*')
+        for key in allkeys:
+            listname = key.split('|')[-1]
+            listclicks = r.hget(key, 'clicks')
+            blabber.append((listname, int(listclicks)))
+
+    return sorted(blabber, key=lambda tup: tup[1])
+
+print toplinks()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# new stuff up above this line...
 
 
 def byClicks(links):
