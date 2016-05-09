@@ -22,9 +22,13 @@ config.read('go.cfg')
 # cfg_fnDatabase = config.get('goconfig', 'cfg_fnDatabase')
 cfg_fnDatabase = 'redis'
 
-
-fileConfig('logconfig.ini')
 log = logging.getLogger(__name__)
+sh = logging.StreamHandler() 
+sh.setLevel(logging.DEBUG)
+log.setLevel(logging.DEBUG)
+log.addHandler(sh)
+formatter = logging.Formatter('%(asctime)s %(name)-12s %(levelname)-8s %(message)s')
+sh.setFormatter(formatter)
 log.debug('redirector starting....')
 
 
@@ -507,6 +511,7 @@ class Link(Clickable):
         d = {"*": "/".join(remainingPath), "0": keyword}
         d.update(MYGLOBALS.g_db.variables)
         d.update(tools.getDictFromCookie("variables"))
+        # import pdb;pdb.set_trace()
         while True:
             try:
                 return string.Formatter().vformat(self._url, args or remainingPath, d)
@@ -674,7 +679,7 @@ class RegexList(ListOfLinks):
         return ret
 
     def url(self, kw=None):
-
+        # import pdb;pdb.set_trace()
         if kw is None:
             kw = cherrypy.request.path_info.split("/")[1]
 

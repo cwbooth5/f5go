@@ -17,9 +17,10 @@ import ConfigParser
 import cherrypy
 import jinja2
 import random
+import logging
 from optparse import OptionParser
 
-from core import ListOfLinks, Link, MYGLOBALS, InvalidKeyword, log
+from core import ListOfLinks, Link, MYGLOBALS, InvalidKeyword
 import tools
 
 __author__ = "Saul Pwanson <saul@pwanson.com>"
@@ -39,6 +40,75 @@ MYGLOBALS.cfg_urlSSO = config.get('goconfig', 'cfg_urlSSO')
 MYGLOBALS.cfg_urlEditBase = "https://" + MYGLOBALS.cfg_hostname
 MYGLOBALS.cfg_listenPort = int(config.get('goconfig', 'cfg_listenPort'))
 
+LOG = logging.getLogger(__name__)
+LOGDB = logging.getLogger('db')
+
+LOG_CONF = {
+    'version': 1,
+
+    'formatters': {
+        'void': {
+            'format': ''
+        },
+        'standard': {
+            'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+        },
+    },
+    'handlers': {
+        'default': {
+            'level':'INFO',
+            'class':'logging.StreamHandler',
+            'formatter': 'standard',
+            'stream': 'ext://sys.stdout'
+        },
+        'cherrypy_console': {
+            'level':'INFO',
+            'class':'logging.StreamHandler',
+            'formatter': 'void',
+            'stream': 'ext://sys.stdout'
+        },
+        'cherrypy_access': {
+            'level':'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'formatter': 'void',
+            'filename': 'access.log',
+            'maxBytes': 10485760,
+            'backupCount': 20,
+            'encoding': 'utf8'
+        },
+        'cherrypy_error': {
+            'level':'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'formatter': 'void',
+            'filename': 'errors.log',
+            'maxBytes': 10485760,
+            'backupCount': 20,
+            'encoding': 'utf8'
+        },
+    },
+    'loggers': {
+        '': {
+            'handlers': ['default'],
+            'level': 'DEBUG'
+        },
+        'db': {
+            'handlers': ['default'],
+            'level': 'DEBUG' ,
+            'propagate': False
+        },
+        'cherrypy.access': {
+            'handlers': ['cherrypy_access'],
+            'level': 'INFO',
+            'propagate': False
+        },
+        'cherrypy.error': {
+            'handlers': ['cherrypy_console', 'cherrypy_error'],
+            'level': 'INFO',
+            'propagate': False
+        },
+    }
+}
+logging.config.dictConfig(LOG_CONF)
 
 def config_jinja():
     """Construct a jinja environment, provide filters and globals
@@ -60,7 +130,6 @@ def config_jinja():
 
 class Root(object):
     env = config_jinja()
-
     def redirect(self, url, status=307):
         """HTTP 307 redirect to another URL."""
         cherrypy.response.status = status
@@ -240,6 +309,7 @@ class Root(object):
 
     @cherrypy.expose
     def special(self):
+        LOG.debug('in /special...')
         LL = ListOfLinks(linkid=-1)
         LL.name = "Smart Keywords"
         LL.links = MYGLOBALS.g_db.getSpecialLinks()
@@ -256,7 +326,7 @@ class Root(object):
 
     @cherrypy.expose
     def _link_(self, linkid):
-        log.debug('in /_link_, linkid=%d' % linkid)
+        LOG.debug('in /_link_, linkid=%d' % linkid)
         link = MYGLOBALS.g_db.getLink(linkid)
         if link:
             link.clicked()
@@ -267,7 +337,7 @@ class Root(object):
 
     @cherrypy.expose
     def _add_(self, *args, **kwargs):
-        # log.debug('in /_add_, args=%s, kwargs=%s' % (args, kwargs))
+        LOG.debug('in /_add_, args=%s, kwargs=%s' % (args, kwargs))
         # _add_/tag1/tag2/tag3
         # TODO: more cleaning
         ourlink = tools.getlink(linkname=args[0])
@@ -286,7 +356,7 @@ class Root(object):
 
     @cherrypy.expose
     def _editlist_(self, keyword, **kwargs):
-        log.debug('in /_editlist_, keyword=%s, kwargs=%s' % (keyword, kwargs))
+        LOG.debug('in /_editlist_, keyword=%s, kwargs=%s' % (keyword, kwargs))
         K = MYGLOBALS.g_db.getList(keyword, create=False)
         if not K:
             K = ListOfLinks()
@@ -305,14 +375,14 @@ class Root(object):
     @cherrypy.expose
     def _delete_(self, linkid, returnto=""):
         # username = getSSOUsername()
-        log.debug('in /_delete_, linkid=%s, returnto=%s' % (linkid, returnto))
+        LOG.debug('in /_delete_, linkid=%s, returnto=%s' % (linkid, returnto))
         MYGLOBALS.g_db.deleteLink(MYGLOBALS.g_db.getLink(linkid))
 
         return self.redirect("/." + returnto)
 
     @cherrypy.expose
     def _modify_(self, **kwargs):
-        log.debug('in /_modify_, kwargs=%s' % kwargs)
+        LOG.debug('in /_modify_, kwargs=%s' % kwargs)
 
         username = tools.getSSOUsername()
 
@@ -395,12 +465,14 @@ class Root(object):
 
     @cherrypy.expose
     def _internal_(self, *args, **kwargs):
-        log.debug('in /_internal_, args=%s, kwargs=%s' % (args, kwargs))
+        LOG.debug('in /_internal_, args=%s, kwargs=%s' % (args, kwargs))
         # check, toplinks, special, dumplist
         return env.get_template(args[0] + ".html").render(**kwargs)
 
     @cherrypy.expose
     def toplinks(self, n="100"):
+        import pdb;pdb.set_trace()
+        LOG.info('In /toplinks...')
         return env.get_template("toplinks.html").render(n=int(n))
 
     @cherrypy.expose
@@ -413,7 +485,7 @@ class Root(object):
 
     @cherrypy.expose
     def _override_vars_(self, **kwargs):
-        log.debug('in /_override_vars_, kwargs=%s' % kwargs)
+        LOG.debug('in /_override_vars_, kwargs=%s' % kwargs)
         cherrypy.response.cookie["variables"] = urllib.urlencode(kwargs)
         cherrypy.response.cookie["variables"]["max-age"] = 10 * 365 * 24 * 3600
 
@@ -421,7 +493,7 @@ class Root(object):
 
     @cherrypy.expose
     def _set_variable_(self, varname="", value=""):
-        log.debug('in /_set_variable_, varname=%s, value=%s' % (varname,  value))
+        LOG.debug('in /_set_variable_, varname=%s, value=%s' % (varname,  value))
         if varname and value:
             MYGLOBALS.g_db.variables[varname] = value
             MYGLOBALS.g_db.save()
@@ -430,11 +502,16 @@ class Root(object):
 
 
 def main(opts):
+
     cherrypy.config.update({'server.socket_host': '::',
                             'server.socket_port': MYGLOBALS.cfg_listenPort,
                             'request.query_string_encoding': "latin1",
+                            'log.access_file': 'access.log',
+                            'log.error_file': 'error.log',
+                            'log.screen': False
                             })
-
+    cherrypy.engine.unsubscribe('graceful', cherrypy.log.reopen_files)
+    
     # cherrypy.https = s = cherrypy._cpserver.Server()
     # s.socket_host = '::'
     # s.socket_port = 443
@@ -448,7 +525,7 @@ def main(opts):
     # cherrypy.process.plugins.BackgroundTask(60, lambda: MYGLOBALS.g_db.save()).start()
     file_path = os.getcwd().replace("\\", "/")
     conf = {'/images': {"tools.staticdir.on": True, "tools.staticdir.dir": file_path + "/images"}}
-    print "Cherrypy conf: %s" % conf
+    LOG.debug("Cherrypy conf: %s" % conf)
 
     if opts.runas:
         # Check for requested user, raises KeyError if they don't exist.
@@ -462,7 +539,7 @@ def main(opts):
 env = config_jinja()
 
 if __name__ == "__main__":
-
+    
     parser = OptionParser()
     parser.add_option("-i", dest="importfile", action="store",
                       help="Import a link database from a file.")
