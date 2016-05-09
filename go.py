@@ -10,6 +10,7 @@ import os
 import os.path
 import pwd
 import socket
+import time
 import sys
 import urllib
 import ConfigParser
@@ -61,6 +62,7 @@ class Root(object):
     env = config_jinja()
 
     def redirect(self, url, status=307):
+        """HTTP 307 redirect to another URL."""
         cherrypy.response.status = status
         cherrypy.response.headers["Location"] = url
 
@@ -97,7 +99,6 @@ class Root(object):
 
     @cherrypy.expose
     def robots_txt(self):
-        # Specifically for the internal GSA
         return file("robots.txt").read()
 
     @cherrypy.expose
@@ -127,65 +128,115 @@ class Root(object):
         return env.get_template('index.html').render(now=tools.today())
 
     @cherrypy.expose
-    def default(self, *rest, **kwargs):
-        log.debug('in /default, rest=%s, kwargs=%s' % (rest, kwargs))
-        self.redirectIfNotFullHostname()
+    def default(self, requestedlink):
+        # log.debug('in /default, rest=%s, kwargs=%s' % (rest, kwargs))
 
-        keyword = rest[0]
-        rest = rest[1:]
+        # uncomment this when we want to start using cookies again.
+        # self.redirectIfNotFullHostname()
+
+        # possible inputs:
+        # seek
+        # seek/name
+        keyword_raw, _, remainder = requestedlink.partition('/')
 
         forceListDisplay = False
         # action = kwargs.get("action", "list")
 
-        if keyword[0] == ".":  # force list page instead of redirect
-            forceListDisplay = True
-            keyword = keyword[1:]
+        if requestedlink[0] == ".":  # force list page instead of redirect
+            forcelistdisplay = True
+            keyword = keyword_raw[1:]
+        else:
+            keyword = keyword_raw
+            # return a edit template here. TODO
 
-        if rest:
-            keyword += "/"
-        elif forceListDisplay and cherrypy.request.path_info[-1] == "/":
-            # allow go/keyword/ to redirect to go/keyword but go/.keyword/
-            #  to go to the keyword/ index
-            keyword += "/"
+        #TODO this is where we would sanitize whatever they entered in the box.
+        # check to see if it's an existing link.
+        with tools.redisconn() as r:
+            if r.keys('godb|list|%s' % keyword):
+                # already exists.
+                ourlink = tools.getlink(linkname=keyword)
+                listmeta = r.hgetall('godb|listmeta|%s' % keyword)  # list metadata (behavior/clicks)
+                tmplList = env.get_template('list.html')
+                return tmplList.render(linkobj=ourlink, listmeta=listmeta, keyword=keyword)
+            else:
+                # not found, so send to add page.
+                # This 307 redirects back to /<theirkeyword> (goes back to cherrypy)
+                 # return self.redirect(tools.deampify('www.google.com'))
+
+                # create the new list in redis. Metadata first.
+                listmeta = {'behavior': 'freshest',
+                            'clicks': 1}
+                r.hmset('godb|listmeta|%s' % keyword, listmeta)
+
+                # create a link at a new ID.
+                new_id = tools.nextlinkid()
+                boilerplate = {'name': keyword,
+                               'title': 'edit me',
+                               'url': 'edit me',
+                               'owner': 'usergo',
+                               'clicks': 1}
+                r.hmset('godb|link|%s' % new_id, boilerplate)
+
+                # Mark that link as being edited by the current user.
+                epoch_time = float(time.time())
+
+                r.zadd('godb|edits|%s' % new_id, 'usergo', epoch_time)
+
+                # now add the link ID to this new list.
+                r.sadd('godb|list|%s' % keyword, new_id)
+                ourlink = tools.getlink(linkname=keyword)
+                assert ourlink is not None
+                tmplList = env.get_template('list.html')
+                return tmplList.render(linkobj=ourlink, listmeta=listmeta, keyword=keyword)
+
+
+
+
+
+        # if rest:
+        #     keyword += "/"
+        # elif forceListDisplay and cherrypy.request.path_info[-1] == "/":
+        #     # allow go/keyword/ to redirect to go/keyword but go/.keyword/
+        #     #  to go to the keyword/ index
+        #     keyword += "/"
 
         # try it as a list
-        try:
-            ll = MYGLOBALS.g_db.getList(keyword, create=False)
-        except InvalidKeyword as e:
-            return self.notfound(str(e))
+        # try:
+        #     ll = MYGLOBALS.g_db.getList(keyword, create=False)
+        # except InvalidKeyword as e:
+        #     return self.notfound(str(e))
 
-        if not ll:  # nonexistent list
-            # check against all special cases
-            matches = []
-            for R in MYGLOBALS.g_db.regexes.values():
-                matches.extend([(R, L, genL) for L, genL in R.matches(keyword)])
+        # if not ll:  # nonexistent list
+        #     # check against all special cases
+        #     matches = []
+        #     for R in MYGLOBALS.g_db.regexes.values():
+        #         matches.extend([(R, L, genL) for L, genL in R.matches(keyword)])
 
-            if not matches:
-                kw = tools.sanitary(keyword)
-                if not kw:
-                    return self.notfound("No match found for '%s'" % keyword)
+        #     if not matches:
+        #         kw = tools.sanitary(keyword)
+        #         if not kw:
+        #             return self.notfound("No match found for '%s'" % keyword)
 
-                # serve up empty fake list
-                return env.get_template('list.html').render(L=ListOfLinks(linkid=0), keyword=kw)
-            elif len(matches) == 1:
-                R, L, genL = matches[0]  # actual regex, generated link
-                R.clicked()
-                L.clicked()
-                return self.redirect(tools.deampify(genL.url()))
-            else:  # len(matches) > 1
-                LL = ListOfLinks(linkid=-1)  # -1 means non-editable
-                LL.links = [genL for R, L, genL in matches]
-                return env.get_template('list.html').render(L=LL, keyword=keyword)
+        #         # serve up empty fake list
+        #         return env.get_template('list.html').render(L=ListOfLinks(linkid=0), keyword=kw)
+        #     elif len(matches) == 1:
+        #         R, L, genL = matches[0]  # actual regex, generated link
+        #         R.clicked()
+        #         L.clicked()
+        #         return self.redirect(tools.deampify(genL.url()))
+        #     else:  # len(matches) > 1
+        #         LL = ListOfLinks(linkid=-1)  # -1 means non-editable
+        #         LL.links = [genL for R, L, genL in matches]
+        #         return env.get_template('list.html').render(L=LL, keyword=keyword)
 
-        listtarget = ll.getDefaultLink()
+        # listtarget = ll.getDefaultLink()
 
-        if listtarget and not forceListDisplay:
-            ll.clicked()
-            listtarget.clicked()
-            return self.redirect(tools.deampify(listtarget.url()))
+        # if listtarget and not forceListDisplay:
+        #     ll.clicked()
+        #     listtarget.clicked()
+        #     return self.redirect(tools.deampify(listtarget.url()))
 
-        tmplList = env.get_template('list.html')
-        return tmplList.render(L=ll, keyword=keyword)
+
 
     @cherrypy.expose
     def special(self):
@@ -216,21 +267,22 @@ class Root(object):
 
     @cherrypy.expose
     def _add_(self, *args, **kwargs):
-        log.debug('in /_add_, args=%s, kwargs=%s' % (args, kwargs))
+        # log.debug('in /_add_, args=%s, kwargs=%s' % (args, kwargs))
         # _add_/tag1/tag2/tag3
-        link = Link()
-        link.lists = [MYGLOBALS.g_db.getList(listname, create=False) or ListOfLinks(linkid=0, name=listname) for listname in args]
-        return env.get_template("editlink.html").render(L=link, returnto=(args and args[0] or None), **kwargs)
+        # TODO: more cleaning
+        ourlink = tools.getlink(linkname=args[0])
+
+        return env.get_template("editlink.html").render(linkobj=ourlink, returnto=(args and args[0] or None), **kwargs)
 
     @cherrypy.expose
     def _edit_(self, linkid, **kwargs):
         log.debug('in /_edit_, linkid=%s, kwargs=%s' % (linkid, kwargs))
-        link = MYGLOBALS.g_db.getLink(linkid)
-        if link:
-            return env.get_template("editlink.html").render(L=link, **kwargs)
+        # link = MYGLOBALS.g_db.getLink(linkid)
+        # if link:
+        #     return env.get_template("editlink.html").render(L=link, **kwargs)
 
-        # edit new link
-        return env.get_template("editlink.html").render(L=Link(), **kwargs)
+        # # edit new link
+        # return env.get_template("editlink.html").render(L=Link(), **kwargs)
 
     @cherrypy.expose
     def _editlist_(self, keyword, **kwargs):

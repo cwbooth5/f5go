@@ -36,6 +36,22 @@ def clickstats(linkname):
     pass
 
 
+def nextlinkid():
+    """Look at the attached redis db for a link ID. Initialize with that.
+    Otherwise, it needs to be created so initialize it at 1.
+    """
+    # TODO: change to just incr() since that makes new keys.
+    with redisconn() as r:
+        nextid = r.get('godb|nextlinkid')
+        if nextid is None:
+            # Nothing in redis. Set it at 1, return 1.
+            nextid = r.set('godb|nextlinkid', 1)
+            return 1
+
+        r.incr('godb|nextlinkid')
+        return nextid
+
+
 def getedits(link_id, mostrecent=False):
     """Return a list of tuples for all edits on a given link ID. Return the most recent
     edit if mostrecent == True.
@@ -46,7 +62,6 @@ def getedits(link_id, mostrecent=False):
             return r.zrange('godb|edits|%s' % link_id, -1, -1, withscores=True)[0]
         # return the whole list of tuples
         return r.zrange('godb|edits|%s' % link_id, 0, -1, withscores=True)
-
 
 
 def getlink(linkname):

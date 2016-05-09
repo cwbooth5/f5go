@@ -43,38 +43,6 @@ def editlist(listname, username, prune=None, **kwargs):
 
     # on exit, modify the edit time and last user to edit the list.
 
-def editlink(linkid, username, prune=None, **kwargs):
-    """Modify a link.
-    When a link gets edited, one of many fields can be changed.
-    - title
-    - url
-    - list membership
-
-    Other stuff can change:
-    - the link can be deleted.
-    - The link can be added to another list.
-    - The link can be removed from a list. (uncheck the checkbox)
-    """
-    epoch_time = float(time.time())
-    with tools.redisconn() as r:
-        r.zadd('godb|edits|%s' % linkid, username, epoch_time)
-
-        name = 'godb|link|%s' % linkid
-        if kwargs.get('title'):
-            r.hset(name=name, key='title', value=kwargs.get('title'))
-        if kwargs.get('url'):
-            r.hset(name=name, key='url', value=kwargs.get('url'))
-
-        # lists to remove this link from, if they asked for it
-        if prune:
-            assert isinstance(prune, list), 'A list must be provided here!'
-            for listname in prune:
-                # list of names is passed in.
-                r.srem('godb|list|%s' % listname, linkid)
-
-        # If they filled in a list to add this link to, add it to that list (if it exists)
-        if not r.sismember('godb|list|%s' % listname, linkid):
-            r.sadd('godb|list|%s' % listname, linkid)
 
 
 
@@ -140,4 +108,5 @@ def populate_garbage():
                 targetlistid = targetkey.split('|')[-1]
                 r.sadd(selection, targetlistid)
 
-populate_garbage()
+# populate_garbage()
+

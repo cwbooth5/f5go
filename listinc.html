@@ -1,6 +1,8 @@
+<!-- This file defines macros imported on index.html. -->
 {% macro m_editlink(link, username) -%}
     <div class="pull-right">
       <a
+    {# note that the <a tag is not closed here. That is intentional.#}
     {% if link.edits %}
       {% set lastEditName, lastEditTime = tools.getedits(link.linkid, mostrecent=True) %}
       title="edited {{ lastEditTime|time_t }} by {{ lastEditName }}"

@@ -5,7 +5,11 @@
 
 {% from "listinc.html" import m_linkrender %}
 
-{% block keyword %}<form style="display: inline;" action="/"><input type="text" name="keyword" size="12" value=""/></form>
+{% block keyword %}
+{# They enter a keyword in the go/[  ] box #}
+  <form style="display: inline;" action="/">
+    <input type="text" name="keyword" size="12" value=""/>
+  </form>
 {% endblock %}
 
 
@@ -26,12 +30,10 @@
 <table class="table table-striped">
 {% if alltoplinks %}
     {% for idx, item in enumerate(alltoplinks) %}
-
-        {% set link = tools.getlink(item[0])%}
-         {{ m_linkrender(idx+1, link, username) }}
+      {% set link = tools.getlink(item[0])%}
+      {{ m_linkrender(idx+1, link, username) }}
 
     {% endfor %}
-
 {% endif %}
 </table>
 </div>
