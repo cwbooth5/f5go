@@ -36,7 +36,7 @@ def editlist(listname, username, prune=None, **kwargs):
             r.lpush(kwargs.get('linkid'), 'godb|list|%s' % listname)
         elif kwargs.get('linkid'):
             # They want to remove the link from the list.
-            r.lrem(name='godb|list|%s' % listname, count=0, value=linkid)
+            r.lrem(name='godb|list|%s' % listname, count=0, value=kwargs.get('linkid'))
 
         # r.hmset('godb|listmeta|')
 
@@ -110,3 +110,6 @@ def populate_garbage():
 
 # populate_garbage()
 
+with tools.redisconn() as r:
+    print 'flush database..'
+    r.flushall()

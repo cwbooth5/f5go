@@ -224,7 +224,7 @@ class Root(object):
             if r.keys('godb|list|%s' % keyword):
                 # already exists.
                 ourlink = tools.getlink(linkname=keyword)
-                listmeta = r.hgetall('godb|listmeta|%s' % keyword)  # list metadata (behavior/clicks)
+                listmeta = r.hgetall('godb|listmeta|%s' % keyword)  # list metadata behavior/clicks
                 tmplList = env.get_template('list.html')
                 return tmplList.render(linkobj=ourlink, listmeta=listmeta, keyword=keyword)
             else:
@@ -232,79 +232,10 @@ class Root(object):
                 # This 307 redirects back to /<theirkeyword> (goes back to cherrypy)
                  # return self.redirect(tools.deampify('www.google.com'))
 
-                # create the new list in redis. Metadata first.
-                listmeta = {'behavior': 'freshest',
-                            'clicks': 1}
-                r.hmset('godb|listmeta|%s' % keyword, listmeta)
-
-                # create a link at a new ID.
-                new_id = tools.nextlinkid()
-                boilerplate = {'name': keyword,
-                               'title': 'edit me',
-                               'url': 'edit me',
-                               'owner': 'usergo',
-                               'clicks': 1}
-                r.hmset('godb|link|%s' % new_id, boilerplate)
-
-                # Mark that link as being edited by the current user.
-                epoch_time = float(time.time())
-
-                r.zadd('godb|edits|%s' % new_id, 'usergo', epoch_time)
-
-                # now add the link ID to this new list.
-                r.sadd('godb|list|%s' % keyword, new_id)
-                ourlink = tools.getlink(linkname=keyword)
-                assert ourlink is not None
+                
                 tmplList = env.get_template('list.html')
-                return tmplList.render(linkobj=ourlink, listmeta=listmeta, keyword=keyword)
-
-
-
-
-
-        # if rest:
-        #     keyword += "/"
-        # elif forceListDisplay and cherrypy.request.path_info[-1] == "/":
-        #     # allow go/keyword/ to redirect to go/keyword but go/.keyword/
-        #     #  to go to the keyword/ index
-        #     keyword += "/"
-
-        # try it as a list
-        # try:
-        #     ll = MYGLOBALS.g_db.getList(keyword, create=False)
-        # except InvalidKeyword as e:
-        #     return self.notfound(str(e))
-
-        # if not ll:  # nonexistent list
-        #     # check against all special cases
-        #     matches = []
-        #     for R in MYGLOBALS.g_db.regexes.values():
-        #         matches.extend([(R, L, genL) for L, genL in R.matches(keyword)])
-
-        #     if not matches:
-        #         kw = tools.sanitary(keyword)
-        #         if not kw:
-        #             return self.notfound("No match found for '%s'" % keyword)
-
-        #         # serve up empty fake list
-        #         return env.get_template('list.html').render(L=ListOfLinks(linkid=0), keyword=kw)
-        #     elif len(matches) == 1:
-        #         R, L, genL = matches[0]  # actual regex, generated link
-        #         R.clicked()
-        #         L.clicked()
-        #         return self.redirect(tools.deampify(genL.url()))
-        #     else:  # len(matches) > 1
-        #         LL = ListOfLinks(linkid=-1)  # -1 means non-editable
-        #         LL.links = [genL for R, L, genL in matches]
-        #         return env.get_template('list.html').render(L=LL, keyword=keyword)
-
-        # listtarget = ll.getDefaultLink()
-
-        # if listtarget and not forceListDisplay:
-        #     ll.clicked()
-        #     listtarget.clicked()
-        #     return self.redirect(tools.deampify(listtarget.url()))
-
+                return tmplList.render(linkobj=None, listmeta=None, keyword=keyword)
+                # return tmplList.render(linkobj=ourlink, listmeta=listmeta, keyword=keyword)
 
 
     @cherrypy.expose
@@ -339,14 +270,49 @@ class Root(object):
     def _add_(self, *args, **kwargs):
         LOG.debug('in /_add_, args=%s, kwargs=%s' % (args, kwargs))
         # _add_/tag1/tag2/tag3
-        # TODO: more cleaning
-        ourlink = tools.getlink(linkname=args[0])
+        # TODO: move all the add code here from /default
+        # This is the attachment to the list of links.
+        keyword = args[0]
+        with tools.redisconn() as r:
+            # create the new list in redis. Metadata first.
+            listmeta = {'behavior': 'freshest',
+                        'clicks': 0}
+            r.hmset('godb|listmeta|%s' % keyword, listmeta)
+
+            # create a link at a new ID.
+            new_id = tools.nextlinkid()
+            boilerplate = {'name': keyword,
+                           'title': None,
+                           'url': None,
+                           'owner': 'usergo',
+                           'clicks': 0}
+            r.hmset('godb|link|%s' % new_id, boilerplate)
+
+            # Mark that link as being edited by the current user.
+            epoch_time = float(time.time())
+            r.zadd('godb|edits|%s' % new_id, 'usergo', epoch_time)
+
+            # now add the link ID to this new list.
+            r.sadd('godb|list|%s' % keyword, new_id)
+
+        # This link is now created. It's not added to the list until
+        # after the user inputs everything to annotate the link.
+        ourlink = tools.getlink(linkname=keyword)
+        assert ourlink is not None
+
+
+        # take in a keyword, find the link ID for that keyword, add that ID to the list.
+        # with tools.redisconn() as r:
+        #     link_id = tools.getlink(args[0]).linkid
+        #     r.sadd('godb|list|%s' % args[0], link_id)
+
+        # ourlink = tools.getlink(linkname=args[0])
 
         return env.get_template("editlink.html").render(linkobj=ourlink, returnto=(args and args[0] or None), **kwargs)
 
     @cherrypy.expose
     def _edit_(self, linkid, **kwargs):
-        log.debug('in /_edit_, linkid=%s, kwargs=%s' % (linkid, kwargs))
+        LOG.debug('in /_edit_, linkid=%s, kwargs=%s' % (linkid, kwargs))
         # link = MYGLOBALS.g_db.getLink(linkid)
         # if link:
         #     return env.get_template("editlink.html").render(L=link, **kwargs)
@@ -357,32 +323,48 @@ class Root(object):
     @cherrypy.expose
     def _editlist_(self, keyword, **kwargs):
         LOG.debug('in /_editlist_, keyword=%s, kwargs=%s' % (keyword, kwargs))
-        K = MYGLOBALS.g_db.getList(keyword, create=False)
-        if not K:
-            K = ListOfLinks()
-        return env.get_template("list.html").render(L=K, keyword=keyword)
+        ourlink = tools.getlink(linkname=keyword)
+        with tools.redisconn() as r:
+            listmeta = r.hgetall('godb|listmeta|%s' % keyword)
+        return env.get_template("list.html").render(linkobj=ourlink, 
+                                                    keyword=keyword,
+                                                    listmeta=listmeta)
 
     @cherrypy.expose
     def _setbehavior_(self, keyword, **kwargs):
-        log.debug('in /_setbehavior_, keyword=%s, kwargs=%s' % (keyword, kwargs))
-        K = MYGLOBALS.g_db.getList(keyword, create=False)
-
+        LOG.debug('in /_setbehavior_, keyword=%s, kwargs=%s' % (keyword, kwargs))     
         if "behavior" in kwargs:
-            K._url = kwargs["behavior"]
-
+            with tools.redisconn() as r:
+                r.hset(name='godb|listmeta|%s' % keyword,
+                       key='behavior',
+                       value=kwargs.get('behavior'))
         return self.redirectToEditList(keyword)
 
     @cherrypy.expose
     def _delete_(self, linkid, returnto=""):
         # username = getSSOUsername()
         LOG.debug('in /_delete_, linkid=%s, returnto=%s' % (linkid, returnto))
-        MYGLOBALS.g_db.deleteLink(MYGLOBALS.g_db.getLink(linkid))
+        with tools.redisconn() as r:
+            # remove the link ID from any lists it's in.
+            for listname in tools.getlistmembership(linkid):
+                r.srem('godb|list|%s' % listname, linkid)
 
+                # remove the listmeta for this list name, but only if it's empty now.
+                # if r.scard('godb|list|%s' % listname):
+                if not r.keys('godb|list|%s' % listname):
+                    r.delete('godb|listmeta|%s' % listname)
+
+            # remove all the edit history.
+            r.delete('godb|edits|%s' % linkid)
+
+            # remove the link itself.
+            r.delete('godb|link|%s' % linkid)
         return self.redirect("/." + returnto)
 
     @cherrypy.expose
     def _modify_(self, **kwargs):
         LOG.debug('in /_modify_, kwargs=%s' % kwargs)
+        
 
         username = tools.getSSOUsername()
 
@@ -390,77 +372,80 @@ class Root(object):
         title = tools.escapeascii(kwargs.get("title", ""))
         lists = kwargs.get("lists", [])
         url = kwargs.get("url", "")
+
+        # supposed to be space-delimited, TODO, need more boxes.
         otherlists = kwargs.get("otherlists", "")
 
         returnto = kwargs.get("returnto", "")
 
         # remove any whitespace/newlines in url
         url = "".join(url.split())
+        tools.editlink(linkid, username, title=title, url=url,
+                       otherlists=otherlists)
+        # if type(lists) not in [tuple, list]:
+        #     lists = [lists]
 
-        if type(lists) not in [tuple, list]:
-            lists = [lists]
+        # lists.extend(otherlists.split())
 
-        lists.extend(otherlists.split())
+        # if linkid:
+        #     link = MYGLOBALS.g_db.getLink(linkid)
+        #     if link._url != url:
+        #         MYGLOBALS.g_db._changeLinkUrl(link, url)
+        #     link.title = title
 
-        if linkid:
-            link = MYGLOBALS.g_db.getLink(linkid)
-            if link._url != url:
-                MYGLOBALS.g_db._changeLinkUrl(link, url)
-            link.title = title
+        #     newlistset = []
+        #     for listname in lists:
+        #         if "{*}" in url:
+        #             if listname[-1] != "/":
+        #                 listname += "/"
+        #         try:
+        #             newlistset.append(MYGLOBALS.g_db.getList(listname, create=True))
+        #         except:
+        #             return self.redirectToEditLink(error="invalid keyword '%s'" % listname, **kwargs)
 
-            newlistset = []
-            for listname in lists:
-                if "{*}" in url:
-                    if listname[-1] != "/":
-                        listname += "/"
-                try:
-                    newlistset.append(MYGLOBALS.g_db.getList(listname, create=True))
-                except:
-                    return self.redirectToEditLink(error="invalid keyword '%s'" % listname, **kwargs)
+        #     for LL in newlistset:
+        #         if LL not in link.lists:
+        #             LL.addLink(link)
 
-            for LL in newlistset:
-                if LL not in link.lists:
-                    LL.addLink(link)
+        #     for LL in [x for x in link.lists]:
+        #         if LL not in newlistset:
+        #             LL.removeLink(link)
+        #             if not LL.links:
+        #                 MYGLOBALS.g_db.deleteList(LL)
 
-            for LL in [x for x in link.lists]:
-                if LL not in newlistset:
-                    LL.removeLink(link)
-                    if not LL.links:
-                        MYGLOBALS.g_db.deleteList(LL)
+        #     link.lists = newlistset
 
-            link.lists = newlistset
+        #     link.editedBy(username)
 
-            link.editedBy(username)
+        #     MYGLOBALS.g_db.save()
 
-            MYGLOBALS.g_db.save()
+        #     return self.redirect("/." + returnto)
 
-            return self.redirect("/." + returnto)
+        # if not lists:
+        #     return self.redirectToEditLink(error="delete links that have no lists", **kwargs)
 
-        if not lists:
-            return self.redirectToEditLink(error="delete links that have no lists", **kwargs)
+        # if not url:
+        #     return self.redirectToEditLink(error="URL required", **kwargs)
 
-        if not url:
-            return self.redirectToEditLink(error="URL required", **kwargs)
+        # # if url already exists, redirect to that link's edit page
+        # if url in MYGLOBALS.g_db.linksByUrl:
+        #     link = MYGLOBALS.g_db.linksByUrl[url]
 
-        # if url already exists, redirect to that link's edit page
-        if url in MYGLOBALS.g_db.linksByUrl:
-            link = MYGLOBALS.g_db.linksByUrl[url]
+        #     # only modify lists; other fields will only be set if there
+        #     # is no original
 
-            # only modify lists; other fields will only be set if there
-            # is no original
+        #     combinedlists = set([x.name for x in link.lists]) | set(lists)
 
-            combinedlists = set([x.name for x in link.lists]) | set(lists)
+        #     fields = {'title': link.title or title,
+        #               'lists': " ".join(combinedlists),
+        #               'linkid': str(link.linkid)
+        #               }
 
-            fields = {'title': link.title or title,
-                      'lists': " ".join(combinedlists),
-                      'linkid': str(link.linkid)
-                      }
+        #     return self.redirectToEditLink(error="found identical existing URL; confirm changes and re-submit", **fields)
 
-            return self.redirectToEditLink(error="found identical existing URL; confirm changes and re-submit", **fields)
+        # link = MYGLOBALS.g_db.addLink(lists, url, title, username)
 
-        link = MYGLOBALS.g_db.addLink(lists, url, title, username)
-
-        MYGLOBALS.g_db.save()
+        # MYGLOBALS.g_db.save()
         return self.redirect("/." + returnto)
 
     @cherrypy.expose
@@ -471,7 +456,6 @@ class Root(object):
 
     @cherrypy.expose
     def toplinks(self, n="100"):
-        import pdb;pdb.set_trace()
         LOG.info('In /toplinks...')
         return env.get_template("toplinks.html").render(n=int(n))
 

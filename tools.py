@@ -76,12 +76,29 @@ def getlink(linkname):
             if r.hget(target, 'name') == linkname:
                 vals = r.hgetall(target)  # Grab all keys in the hash.
                 lid = target.split('|')[-1]  # This is the link ID off the end of the hash name.
-                ourlink = Link(linkid=lid, url=vals['url'], title=vals['title'],
-                               owner=vals['owner'], name=vals['name'], clicks=vals['clicks'], edits=getedits(lid))
+                ourlink = Link(linkid=int(lid), url=vals['url'], title=vals['title'],
+                               owner=vals['owner'], name=vals['name'], clicks=int(vals['clicks']), edits=getedits(lid))
                 return ourlink
 
 
-def editlink(linkid, username, prune=None, **kwargs):
+def getlistoflinks(linkname):
+    """Return a list of link objects for all links in a given list name."""
+    
+    results = []
+    with redisconn() as r:
+        for linkid in r.smembers('godb|list|%s' % linkname):
+            results.append(r.hgetall('godb|link|%s' % linkid))
+    return results
+
+
+def getlistbehavior(listname):
+    """Using a list name, get the list's behavior."""
+    with redisconn() as r:
+        behavior = r.hget(name='godb|listmeta|%s' % listname, 
+                          key='behavior')
+    return behavior
+
+def editlink(linkid, username, prune=None, *args, **kwargs):
     """Modify a link.
     When a link gets edited, one of many fields can be changed.
     - title
@@ -94,14 +111,14 @@ def editlink(linkid, username, prune=None, **kwargs):
     - The link can be removed from a list. (uncheck the checkbox)
     """
     epoch_time = float(time.time())
-    with tools.redisconn() as r:
+    with redisconn() as r:
         r.zadd('godb|edits|%s' % linkid, username, epoch_time)
 
-        name = 'godb|link|%s' % linkid
+        hashname = 'godb|link|%s' % linkid
         if kwargs.get('title'):
-            r.hset(name=name, key='title', value=kwargs.get('title'))
+            r.hset(name=hashname, key='title', value=kwargs.get('title'))
         if kwargs.get('url'):
-            r.hset(name=name, key='url', value=kwargs.get('url'))
+            r.hset(name=hashname, key='url', value=kwargs.get('url'))
 
         # lists to remove this link from, if they asked for it
         if prune:
@@ -109,13 +126,21 @@ def editlink(linkid, username, prune=None, **kwargs):
             for listname in prune:
                 # list of names is passed in.
                 r.srem('godb|list|%s' % listname, linkid)
+        # else:
+        #     # at least add it to their native list.
+        #     r.sadd('godb|list|%s' % listname, linkid)
 
         # If they filled in a list to add this link to, add it to that list (if it exists)
-        if not r.sismember('godb|list|%s' % listname, linkid):
-            r.sadd('godb|list|%s' % listname, linkid)
+        if kwargs.get('otherlists'):
+            for extralist in kwargs.get('otherlists').split():
+                if not r.sismember('godb|list|%s' % extralist, linkid):
+                    r.sadd('godb|list|%s' % extralist, linkid)
 
 
-
+def addtolist(keyword, link_id):
+    with redisconn() as r:
+        # now add the link ID to this new list.
+        r.sadd('godb|list|%s' % keyword, link_id)
 
 
 def toplinks(count=None):
@@ -145,6 +170,18 @@ def toplinks(count=None):
 print toplinks()
 
 
+def getlistmembership(linkid):
+    """Take in a link ID and return all lists which it is a member."""
+    results = []
+    with redisconn() as r: 
+        # inefficient, iterating through every list here.. TODO
+        all_lists = r.keys('godb|list|*')
+        for key in all_lists:
+            if str(linkid) in r.smembers(key):
+                listname = key.split('|')[-1]
+                results.append(listname)
+
+    return results
 
 
 
@@ -292,6 +329,7 @@ def getDictFromCookie(cookiename):
 
 
 def getCurrentEditableUrl():
+    cfg_urlEditBase = "http://"  # hack, TODO
     redurl = cfg_urlEditBase + cherrypy.request.path_info
     if cherrypy.request.query_string:
         redurl += "?" + cherrypy.request.query_string
