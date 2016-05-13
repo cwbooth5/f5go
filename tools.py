@@ -51,6 +51,17 @@ def nextlinkid():
         r.incr('godb|nextlinkid')
         return nextid
 
+def registerclick(linkid=None, listname=None):
+    """Increment the click count for either a link ID or a list name."""
+    with redisconn() as r:
+        if linkid:
+            r.hincrby(name='godb|link|%s' % linkid, key='clicks')
+            return True
+        if listname:
+            r.hincrby(name='godb|listmeta|%s' % listname, key='clicks')
+            return True
+        raise EnvironmentError('specify linkid or listname!')
+
 
 def getedits(link_id, mostrecent=False):
     """Return a list of tuples for all edits on a given link ID. Return the most recent
@@ -111,6 +122,8 @@ def editlink(linkid, username, prune=None, *args, **kwargs):
     - The link can be removed from a list. (uncheck the checkbox)
     """
     epoch_time = float(time.time())
+    import pdb;pdb.set_trace()
+    registerclick(linkid=linkid)
     with redisconn() as r:
         r.zadd('godb|edits|%s' % linkid, username, epoch_time)
 
@@ -141,6 +154,7 @@ def addtolist(keyword, link_id):
     with redisconn() as r:
         # now add the link ID to this new list.
         r.sadd('godb|list|%s' % keyword, link_id)
+    registerclick(listname=keyword)
 
 
 def toplinks(count=None):
@@ -167,7 +181,7 @@ def toplinks(count=None):
         return sorted(blabber, key=lambda tup: tup[1])[:count]
     return sorted(blabber, key=lambda tup: tup[1])
 
-print toplinks()
+print toplinks()  # TODO, remove
 
 
 def getlistmembership(linkid):

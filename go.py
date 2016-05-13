@@ -312,7 +312,17 @@ class Root(object):
 
     @cherrypy.expose
     def _edit_(self, linkid, **kwargs):
+        """To edit a link, we take in the linkid.
+
+        We return to the template the url, title, and list membership.
+        """
         LOG.debug('in /_edit_, linkid=%s, kwargs=%s' % (linkid, kwargs))
+        # import pdb;pdb.set_trace()
+        with tools.redisconn() as r:
+            ourlink = r.hgetall('godb|link|%s' % linkid)
+        return env.get_template("editlink.html").render(linkobj=ourlink, **kwargs)
+
+
         # link = MYGLOBALS.g_db.getLink(linkid)
         # if link:
         #     return env.get_template("editlink.html").render(L=link, **kwargs)
@@ -362,9 +372,10 @@ class Root(object):
         return self.redirect("/." + returnto)
 
     @cherrypy.expose
-    def _modify_(self, **kwargs):
+    def _modify_(**kwargs):
+        """When someone adds a link to an existing list, this runs."""
         LOG.debug('in /_modify_, kwargs=%s' % kwargs)
-        
+        import pdb;pdb.set_trace()
 
         username = tools.getSSOUsername()
 

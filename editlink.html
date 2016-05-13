@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% from "listinc.html" import clickstats %}
 
+{% set username = 'TODO'%}
+
 {% block title %}
   {% if linkobj.clicks < 1 %}
     Add Link
@@ -31,7 +33,7 @@ This is editlink.html
   {% endif %}
 
   {% if linkobj.linkid %}
-    <input type="hidden" name="linkid" value="{% if linkobj.linkid == 'None' %}{{ linkobj.linkid }} {% endif %}"/>
+    <input type="hidden" name="linkid" value="{% if linkobj.linkid == 'None' %}{{ linkobj.linkid }} {% else %}{% set linkid_ = tools.nextlinkid() %}{{linkid_}}{% endif %}"/>
   {% endif %}
 
   <table class="table linkedit">

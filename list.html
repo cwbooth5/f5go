@@ -46,7 +46,7 @@ This is list.html
       </tr>
 
       {# The link doesn't exist, so show give the option to add this as a new list. #}
-      {% else %}
+      {% endif %}
       <tr>
         <td colspan="3">
           <h4 class="center">
@@ -58,12 +58,14 @@ This is list.html
           </h4>
         </td>
       </tr>
-      {% endif %}
+      
 
       {# return a list of link objects that exist in a list. #}
       {% set listoflinks = tools.getlistoflinks(keyword) %}
       {% for idx, item in enumerate(listoflinks) %}
+        {{ idx, item, listoflinks }}
         {{ m_linkrender(idx+1, item, username) }}
+        
       {% else %}
         <tr>
           <td>
