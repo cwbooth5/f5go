@@ -317,7 +317,6 @@ class Root(object):
         We return to the template the url, title, and list membership.
         """
         LOG.debug('in /_edit_, linkid=%s, kwargs=%s' % (linkid, kwargs))
-        # import pdb;pdb.set_trace()
         with tools.redisconn() as r:
             ourlink = r.hgetall('godb|link|%s' % linkid)
         return env.get_template("editlink.html").render(linkobj=ourlink, **kwargs)
@@ -352,6 +351,7 @@ class Root(object):
 
     @cherrypy.expose
     def _delete_(self, linkid, returnto=""):
+        """TODO: fill in"""
         # username = getSSOUsername()
         LOG.debug('in /_delete_, linkid=%s, returnto=%s' % (linkid, returnto))
         with tools.redisconn() as r:
@@ -372,13 +372,11 @@ class Root(object):
         return self.redirect("/." + returnto)
 
     @cherrypy.expose
-    def _modify_(**kwargs):
+    def _modify_(*args, **kwargs):
         """When someone adds a link to an existing list, this runs."""
+        
         LOG.debug('in /_modify_, kwargs=%s' % kwargs)
-        import pdb;pdb.set_trace()
-
         username = tools.getSSOUsername()
-
         linkid = kwargs.get("linkid", "")
         title = tools.escapeascii(kwargs.get("title", ""))
         lists = kwargs.get("lists", [])
@@ -393,71 +391,8 @@ class Root(object):
         url = "".join(url.split())
         tools.editlink(linkid, username, title=title, url=url,
                        otherlists=otherlists)
-        # if type(lists) not in [tuple, list]:
-        #     lists = [lists]
-
-        # lists.extend(otherlists.split())
-
-        # if linkid:
-        #     link = MYGLOBALS.g_db.getLink(linkid)
-        #     if link._url != url:
-        #         MYGLOBALS.g_db._changeLinkUrl(link, url)
-        #     link.title = title
-
-        #     newlistset = []
-        #     for listname in lists:
-        #         if "{*}" in url:
-        #             if listname[-1] != "/":
-        #                 listname += "/"
-        #         try:
-        #             newlistset.append(MYGLOBALS.g_db.getList(listname, create=True))
-        #         except:
-        #             return self.redirectToEditLink(error="invalid keyword '%s'" % listname, **kwargs)
-
-        #     for LL in newlistset:
-        #         if LL not in link.lists:
-        #             LL.addLink(link)
-
-        #     for LL in [x for x in link.lists]:
-        #         if LL not in newlistset:
-        #             LL.removeLink(link)
-        #             if not LL.links:
-        #                 MYGLOBALS.g_db.deleteList(LL)
-
-        #     link.lists = newlistset
-
-        #     link.editedBy(username)
-
-        #     MYGLOBALS.g_db.save()
-
-        #     return self.redirect("/." + returnto)
-
-        # if not lists:
-        #     return self.redirectToEditLink(error="delete links that have no lists", **kwargs)
-
-        # if not url:
-        #     return self.redirectToEditLink(error="URL required", **kwargs)
-
-        # # if url already exists, redirect to that link's edit page
-        # if url in MYGLOBALS.g_db.linksByUrl:
-        #     link = MYGLOBALS.g_db.linksByUrl[url]
-
-        #     # only modify lists; other fields will only be set if there
-        #     # is no original
-
-        #     combinedlists = set([x.name for x in link.lists]) | set(lists)
-
-        #     fields = {'title': link.title or title,
-        #               'lists': " ".join(combinedlists),
-        #               'linkid': str(link.linkid)
-        #               }
-
-        #     return self.redirectToEditLink(error="found identical existing URL; confirm changes and re-submit", **fields)
-
-        # link = MYGLOBALS.g_db.addLink(lists, url, title, username)
-
-        # MYGLOBALS.g_db.save()
-        return self.redirect("/." + returnto)
+        
+        return Root().redirect("/." + returnto)
 
     @cherrypy.expose
     def _internal_(self, *args, **kwargs):

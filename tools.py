@@ -25,6 +25,10 @@ from collections import namedtuple
 # cfg_urlEditBase = "https://" + cfg_hostname
 # cfg_urlSSO = config.get('goconfig', 'cfg_urlSSO')
 
+class LinkNotAdded(Exception):
+    """For some reason, a link was not added to a list."""
+    pass
+
 
 @contextmanager
 def redisconn():
@@ -102,12 +106,7 @@ def getlistoflinks(linkname):
     return results
 
 
-def getlistbehavior(listname):
-    """Using a list name, get the list's behavior."""
-    with redisconn() as r:
-        behavior = r.hget(name='godb|listmeta|%s' % listname, 
-                          key='behavior')
-    return behavior
+
 
 def editlink(linkid, username, prune=None, *args, **kwargs):
     """Modify a link.
@@ -121,9 +120,9 @@ def editlink(linkid, username, prune=None, *args, **kwargs):
     - The link can be added to another list.
     - The link can be removed from a list. (uncheck the checkbox)
     """
-    epoch_time = float(time.time())
     import pdb;pdb.set_trace()
-    registerclick(linkid=linkid)
+    epoch_time = float(time.time())
+    # registerclick(linkid=linkid)
     with redisconn() as r:
         r.zadd('godb|edits|%s' % linkid, username, epoch_time)
 
@@ -150,7 +149,75 @@ def editlink(linkid, username, prune=None, *args, **kwargs):
                     r.sadd('godb|list|%s' % extralist, linkid)
 
 
+class ListOfLinks(object):
+    def __init__(self, keyword):
+        self.keyword = keyword
+        if not self.exists():
+            self.init_list(self.keyword)
+    
+    def exists(self):
+        """Return True if this list of links already exists in the database."""
+        with redisconn() as rconn:
+            return rconn.exists('godb|list|%s' % self.keyword)
+            # todo: could check if metadata was there too.
+
+    def init_list(self):
+        """Construct a new empty list container and all metadata."""
+        with redisconn() as rconn:
+
+
+
+    def refresh(self):
+        """grab new data out of redis."""
+        pass
+
+    def addlink(self, **kwargs):
+        # run the edit function
+        epoch_time = float(time.time())
+        with redisconn() as rconn:
+            # TODO, edits need to be on the list of links.
+            rconn.zadd('godb|edits|%s' % linkid, self.username, epoch_time)
+        
+        # If the keyword exists, we are modifying it.
+
+        # otherwise we are making a new one.
+
+        # we could check to see if it was already added, but we will just update
+        # the values in the hash if it's already there.
+        with redisconn() as rconn:
+            listname = 'godb|list|%s' % self.keyword
+            if not rconn.sismember(listname, linkid):
+                rconn.sadd('godb|list|%s' % extralist, linkid)
+
+
+    def removelink(self, linkid):
+        # run the edit function on the list. #TODO
+        with redisconn() as rconn:
+            listname = 'godb|list|%s' % self.keyword
+            rconn.srem(listname, linkid)
+        # If the length of the list is empty, delete the keyword from redis.
+
+    def behavior(self):
+        """Using a list name, get the list's behavior.
+
+        Returns a dictionary of
+        """
+        with redisconn() as r:
+            listmetaname = 'godb|listmeta|%s' % self.keyword
+            return rconn.hget(name=listmetaname, key='behavior')
+
+    def members(self):
+        # return all link objects under this keyword/list.
+        return getlistoflinks(self.keyword)
+
+    def __len__(self):
+        """Provides the number of links for a given keyword."""
+        return len(self.members())
+
+
+
 def addtolist(keyword, link_id):
+    """Make this idempotent. Add to a list."""
     with redisconn() as r:
         # now add the link ID to this new list.
         r.sadd('godb|list|%s' % keyword, link_id)
