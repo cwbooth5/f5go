@@ -3,3 +3,7 @@
 tmp/*
 *egg*
 .tox*
+.idea*
+.cache*
+*.rdb
+*.log
