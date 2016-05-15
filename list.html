@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% set username = 'TODO' %}
+{% set username = 'fromlisthtml' %}
 {% from "listinc.html" import m_linkrender, clickstats with context %}
 {% block titlekeyword %}
   {{ keyword }}
@@ -10,41 +10,42 @@
 
 {% block body %}
 This is list.html
+{{ thelist|pprint(true) }}
 <div class="row-fluid">
 
-  <h3 class="center">{{ linkobj.name }}</h3>
+  <h3 class="center">{{ keyword }}</h3>
   <div class="column span8 offset2">
 
     <table class="table table-striped">
+    
       {# The link exists already. Show all the fields. #}
+      {% if thelist|length > 0 %}
 
-      {% if linkobj %}
-      {{ listmeta }}
       <tr>
         <td colspan="3">
           <form action="/_setbehavior_" style="margin: 0; text-align: center;">
             <input type="hidden" name="keyword" value="{{ keyword }}"/>
             <b><a href="/{{ keyword|escapekeyword }}">go/{{ keyword }}</a></b> redirects to 
             <select name="behavior" {% if not username %}disabled="true"{% endif %}>
-            <option value="list" {% if listmeta.behavior == "list" %}selected{% endif %}>this list of links</option>
-            <option value="freshest" {% if listmeta.behavior == "freshest" %}selected{% endif %}>the freshest link</option>
-            <option value="top" {% if listmeta.behavior == "top" %}selected{% endif %}>the most used link</option>
-            <option value="random" {% if listmeta.behavior == "random" %}selected{% endif %}>a random link</option>
+            <option value="list" {% if thelist.behavior() == "list" %}selected{% endif %}>this list of links</option>
+            <option value="freshest" {% if thelist.behavior() == "freshest" %}selected{% endif %}>the freshest link</option>
+            <option value="top" {% if thelist.behavior() == "top" %}selected{% endif %}>the most used link</option>
+            <option value="random" {% if thelist.behavior() == "random" %}selected{% endif %}>a random link</option>
 
-            {# If it's already in a list, put those here with checked boxes. #}
+            
             {# Put this keyword in as a minimum. #}
-            {% for listname in tools.getlistmembership(linkobj.linkid) %}
-              {% set linkinfo = tools.getlink(listname) %}
-              <!-- <option value="{{ linkinfo.linkid }}"selected>{{ linkinfo.name }}</option> -->
-            {% endfor %}
+            {# {% for listname in tools.getlistmembership(thelist.linkid) %} #}
+              {# {% set linkinfo = tools.getlink(listname) %} #}
+              <!-- <option value="{{ keyword }}" selected>{{ keyword }}</option> -->
+            {# {% endfor %} #}
             </select>
             {% if username %}
-            <input type="submit" value="Change Behavior"/>
+              <input type="submit" value="Change Behavior"/>
             {% endif %}
           </form>
         </td>
       </tr>
-
+      {% else %}
       {# The link doesn't exist, so show give the option to add this as a new list. #}
       {% endif %}
       <tr>
@@ -61,10 +62,10 @@ This is list.html
       
 
       {# return a list of link objects that exist in a list. #}
-      {% set listoflinks = tools.getlistoflinks(keyword) %}
-      {% for idx, item in enumerate(listoflinks) %}
-        {{ idx, item, listoflinks }}
-        {{ m_linkrender(idx+1, item, username) }}
+      {% set listoflinks = thelist.members() %}
+      {% set idx = 0 %}
+      {% for linkid, linkdata in listoflinks.items() %}
+        {{ m_linkrender(idx+1, linkdata, username, linkid) }}
         
       {% else %}
         <tr>

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from "listinc.html" import clickstats %}
 
-{% set username = 'TODO'%}
+{% set username = 'editlink'%}
 
 {% block title %}
   {% if linkobj.clicks < 1 %}
@@ -18,6 +18,7 @@
 
 {% block body %}
 This is editlink.html
+{{ linkobj|pprint(true) }}
 <div class="row-fluid">
 
 <div class="column span6">
@@ -33,7 +34,7 @@ This is editlink.html
   {% endif %}
 
   {% if linkobj.linkid %}
-    <input type="hidden" name="linkid" value="{% if linkobj.linkid == 'None' %}{{ linkobj.linkid }} {% else %}{% set linkid_ = tools.nextlinkid() %}{{linkid_}}{% endif %}"/>
+    <input type="hidden" name="linkid" value="{{ linkobj.linkid }}"/>
   {% endif %}
 
   <table class="table linkedit">
@@ -62,14 +63,19 @@ This is editlink.html
      <td>Lists</td>
      <td>
      {# Get all the lists this link exists within. #}
-
+     <input type="checkbox" name="lists" checked="checked" value="{{ linkobj.name }}">
+       <a href="/.{{ linkobj.name|escapekeyword }}">{{ linkobj.name }}</a>
+     </input>
      {% set listnames = tools.getlistmembership(linkobj.linkid) %}
       {% for t in listnames %}
-      
-       <input type="checkbox" name="lists" checked="checked" value="{{ t }}">
-       <a href="/.{{ t|escapekeyword }}">
-       {{ t }}
-       </a></input>
+        {# get all additional lists it is a member of #}
+        {% if t != linkobj.name %}
+         <input type="checkbox" name="lists" checked="checked" value="{{ t }}">
+         <a href="/.{{ t|escapekeyword }}">
+         {{ t }}
+         </a></input>
+         
+       {% endif %}
        <br/>
       {% endfor %}
       add to: <input type="text" name="otherlists" value="{{ otherlists }}"/> <i>(space-separated)</i>

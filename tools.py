@@ -29,6 +29,13 @@ class LinkNotAdded(Exception):
     """For some reason, a link was not added to a list."""
     pass
 
+class BehaviorNotModified(Exception):
+    """raised when it's not modified"""
+    pass
+
+class InsaneInput(Exception):
+    """raised when input is completely bonkers."""
+    pass
 
 @contextmanager
 def redisconn():
@@ -38,7 +45,6 @@ def redisconn():
 
 def clickstats(linkname):
     pass
-
 
 def nextlinkid():
     """Look at the attached redis db for a link ID. Initialize with that.
@@ -94,15 +100,16 @@ def getlink(linkname):
                 ourlink = Link(linkid=int(lid), url=vals['url'], title=vals['title'],
                                owner=vals['owner'], name=vals['name'], clicks=int(vals['clicks']), edits=getedits(lid))
                 return ourlink
+        # return None
 
 
 def getlistoflinks(linkname):
     """Return a list of link objects for all links in a given list name."""
     
-    results = []
-    with redisconn() as r:
-        for linkid in r.smembers('godb|list|%s' % linkname):
-            results.append(r.hgetall('godb|link|%s' % linkid))
+    results = {}
+    with redisconn() as rconn:
+        for linkid in rconn.smembers('godb|list|%s' % linkname):
+            results[linkid] = rconn.hgetall('godb|link|%s' % linkid)
     return results
 
 
@@ -120,7 +127,6 @@ def editlink(linkid, username, prune=None, *args, **kwargs):
     - The link can be added to another list.
     - The link can be removed from a list. (uncheck the checkbox)
     """
-    import pdb;pdb.set_trace()
     epoch_time = float(time.time())
     # registerclick(linkid=linkid)
     with redisconn() as r:
@@ -148,66 +154,142 @@ def editlink(linkid, username, prune=None, *args, **kwargs):
                 if not r.sismember('godb|list|%s' % extralist, linkid):
                     r.sadd('godb|list|%s' % extralist, linkid)
 
+class Link(object):
+    def __init__(self, linkid):
+        self.linkid = linkid
+        self.boilerplate = {'name': 'somename',
+                            'title': None,
+                            'url': None,
+                            'owner': 'usergo',
+                            'clicks': 0}
+
+    def modify(self, **kwargs):
+        """modify a given link
+
+        kwargs could include:
+        title (sentence describing it)
+        url
+        owner (user who initially added the link)
+        name
+        clicks
+        """
+        # Any keyword args supplied are set on the link in redis.
+        # This could be an add or an update. Works with both.
+
+        # URLs all need to be cleaned up.
+        testurl = kwargs.get('url')
+        if testurl:
+            sanitized = sanitary(testurl)
+            if sanitized:
+                kwargs['url'] = sanitized
+            else:
+                raise InsaneInput('Entered URL is insane!')
+
+        with redisconn() as rconn:
+            if not rconn.exists('godb|link|%s' % self.linkid):
+                rconn.hmset('godb|link|%s' % self.linkid, 
+                            self.boilerplate)
+            
+            for key, val in kwargs.iteritems():
+                # Check if it's a valid field.
+                if key in ['name', 'title', 'url', 'owner', 'clicks']:
+                    rconn.hset('godb|link|%s' % self.linkid, key, val)
+            # TODO, edits need to be on the list of links too.
+            # run the edit function
+            epoch_time = float(time.time())
+            rconn.zadd('godb|edits|%s' % self.linkid, 'usergo', epoch_time)
+    
 
 class ListOfLinks(object):
     def __init__(self, keyword):
         self.keyword = keyword
-        if not self.exists():
-            self.init_list(self.keyword)
+        self.listname = 'godb|list|%s' % self.keyword
     
     def exists(self):
         """Return True if this list of links already exists in the database."""
         with redisconn() as rconn:
-            return rconn.exists('godb|list|%s' % self.keyword)
+            return rconn.exists(self.listname)
             # todo: could check if metadata was there too.
 
     def init_list(self):
         """Construct a new empty list container and all metadata."""
+        # new_id = nextlinkid()  # make a new ID
         with redisconn() as rconn:
+            # NOTE the set for this list is created when first link added.
+            # create the new list in redis. Metadata first.
+            listmeta = {'behavior': 'freshest',
+                        'clicks': 0}
+            rconn.hmset('godb|listmeta|%s' % self.keyword, listmeta)
+            
 
-
+            # Mark that link as being edited by the current user.
+            # epoch_time = float(time.time())
+            # rconn.zadd('godb|edits|%s' % new_id, 'usergo', epoch_time)
 
     def refresh(self):
         """grab new data out of redis."""
         pass
 
-    def addlink(self, **kwargs):
-        # run the edit function
-        epoch_time = float(time.time())
-        with redisconn() as rconn:
-            # TODO, edits need to be on the list of links.
-            rconn.zadd('godb|edits|%s' % linkid, self.username, epoch_time)
+    def addlink(self, linkid):
+        """Add a new link to the current list of links.
+        If the list doesn't exist, it is created.
+
+        This is adding a number to a set in redis.
+
+        return the link ID that was added.
+        """
         
-        # If the keyword exists, we are modifying it.
+        # new_id = nextlinkid()  # make a new ID
 
-        # otherwise we are making a new one.
+        # bring the list into existence if this is the first link.
+        if not self.exists():
+            self.init_list()
 
-        # we could check to see if it was already added, but we will just update
-        # the values in the hash if it's already there.
+        # if not rconn.sismember(self.listname, linkid):
         with redisconn() as rconn:
-            listname = 'godb|list|%s' % self.keyword
-            if not rconn.sismember(listname, linkid):
-                rconn.sadd('godb|list|%s' % extralist, linkid)
+            rconn.sadd(self.listname, int(linkid))
 
+        return int(linkid)
 
     def removelink(self, linkid):
-        # run the edit function on the list. #TODO
-        with redisconn() as rconn:
-            listname = 'godb|list|%s' % self.keyword
-            rconn.srem(listname, linkid)
-        # If the length of the list is empty, delete the keyword from redis.
+        """Remove a link from the list.
 
-    def behavior(self):
-        """Using a list name, get the list's behavior.
-
-        Returns a dictionary of
+        If the list is empty after the removal, the list is removed completely.
         """
-        with redisconn() as r:
+        # run the edit function on the list. #TODO
+        
+        with redisconn() as rconn:
+            rconn.srem(self.listname, linkid)
+
+        # If the length of the list is empty, delete the keyword from redis.
+        if len(self.members()) == 0:
+            with redisconn() as rconn:
+                listmetaname = 'godb|listmeta|%s' % self.keyword
+                rconn.delete(self.listname, listmetaname)
+
+    def behavior(self, desired=None):
+        """Using a list name, get the list's behavior.
+        If 'desired' is set, set the list's redirect behavior.
+
+        Returns the current behavior.
+        Otherwise, returns True if the behavior was changed.
+        """
+        with redisconn() as rconn:
             listmetaname = 'godb|listmeta|%s' % self.keyword
+            if desired:
+                rconn.hset(listmetaname, 'behavior', desired)
+                return
             return rconn.hget(name=listmetaname, key='behavior')
+
+    def listmeta(self):
+        """return dictionary of list metadata"""
+        with redisconn() as rconn:
+            return rconn.hgetall('godb|listmeta|%s' % self.keyword)
+
 
     def members(self):
         # return all link objects under this keyword/list.
+        # use a dictionary of linkid: {link object dict}
         return getlistoflinks(self.keyword)
 
     def __len__(self):
@@ -248,7 +330,6 @@ def toplinks(count=None):
         return sorted(blabber, key=lambda tup: tup[1])[:count]
     return sorted(blabber, key=lambda tup: tup[1])
 
-print toplinks()  # TODO, remove
 
 
 def getlistmembership(linkid):
@@ -270,48 +351,35 @@ def getlistmembership(linkid):
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # new stuff up above this line...
 
 
 def byClicks(links):
     return sorted(links, key=lambda L: (-L.recentClicks, -L.totalClicks))
 
-sanechars = string.lowercase + string.digits + "-."
 
 
 def sanitary(s):
+    """Return a sanitized string.
 
+    Lowercase the whole thing.
+    All characters must be one of the following:
+    - lower case letters.
+    - digits
+    - minus (-)
+    - period (.)
+
+    Returns the sanitized string. Returns None if it couldn't be cleaned.
+    """
+    
     s = string.lower(s)
+    sanechars = string.lowercase + string.digits + "-."
+    # Search through everything but the last character.
     for a in s[:-1]:
         if a not in sanechars:
             return None
 
+    # if the final character isn't a slash and is not sane..
     if s[-1] not in sanechars and s[-1] != "/":
         return None
 

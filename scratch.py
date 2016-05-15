@@ -110,10 +110,10 @@ def populate_garbage():
 
 # populate_garbage()
 
-# with tools.redisconn() as r:
-#     print 'flush database..'
-#     r.flushall()
+with tools.redisconn() as r:
+    print 'flush database..'
+    r.flushall()
 
 
-mylink = tools.ListOfLinks(keyword='harp')
-import pdb;pdb.set_trace()
+# mylink = tools.ListOfLinks(keyword='harp')
+# import pdb;pdb.set_trace()
