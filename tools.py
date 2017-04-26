@@ -63,12 +63,12 @@ def nextlinkid():
 
 def registerclick(linkid=None, listname=None):
     """Increment the click count for either a link ID or a list name."""
-    with redisconn() as r:
+    with redisconn() as rconn:
         if linkid:
-            r.hincrby(name='godb|link|%s' % linkid, key='clicks')
+            rconn.hincrby(name='godb|link|%s' % linkid, key='clicks')
             return True
         if listname:
-            r.hincrby(name='godb|listmeta|%s' % listname, key='clicks')
+            rconn.hincrby(name='godb|listmeta|%s' % listname.lstrip('.'), key='clicks')
             return True
         raise EnvironmentError('specify linkid or listname!')
 
@@ -298,6 +298,18 @@ class ListOfLinks(object):
 
 
 
+
+def deletelink(linkid):
+    """Remove all traces of a link using the link ID."""
+    with redisconn() as rconn:
+        rconn.delete('godb|link|%s' % linkid)
+        rconn.delete('godb|edits|%s' % linkid)
+        all_keys = rconn.keys('godb|list|*')
+        # remove the link from any list it lives within.
+        for linklist in all_keys:
+            rconn.srem(linklist, linkid)
+
+
 def addtolist(keyword, link_id):
     """Make this idempotent. Add to a list."""
     with redisconn() as r:
@@ -330,6 +342,9 @@ def toplinks(count=None):
         return sorted(blabber, key=lambda tup: tup[1])[:count]
     return sorted(blabber, key=lambda tup: tup[1])
 
+def toplists(count=None):
+    """Return all the top lists by number of members!"""
+    pass
 
 
 def getlistmembership(linkid):
@@ -355,7 +370,8 @@ def getlistmembership(linkid):
 
 
 def byClicks(links):
-    return sorted(links, key=lambda L: (-L.recentClicks, -L.totalClicks))
+    # return sorted(links, key=lambda L: (-L.recentClicks, -L.totalClicks))
+    pass
 
 
 

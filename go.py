@@ -142,6 +142,7 @@ class Root(object):
         return env.get_template("notfound.html").render(message=msg)
 
     def redirectIfNotFullHostname(self, scheme=None):
+        
         if scheme is None:
             scheme = cherrypy.request.scheme
 
@@ -213,6 +214,10 @@ class Root(object):
         # possible inputs:
         # seek
         # seek/name
+
+        # TODO, try incrementing the click count on the list.
+        tools.registerclick(listname=requestedlink)
+
         keyword_raw, _, remainder = requestedlink.partition('/')
 
         forceListDisplay = False
@@ -372,28 +377,9 @@ class Root(object):
         """TODO: fill in"""
         # username = getSSOUsername()
         LOG.debug('in /_delete_, linkid=%s, returnto=%s' % (linkid, returnto))
-        import pdb;pdb.set_trace()
-
-
-
-        # with tools.redisconn() as r:
-        #     # remove the link ID from any lists it's in.
-        #     for listname in tools.getlistmembership(linkid):
-        #         r.srem('godb|list|%s' % listname, linkid)
-
-        #         # remove the listmeta for this list name, but only if it's empty now.
-        #         # if r.scard('godb|list|%s' % listname):
-        #         if not r.keys('godb|list|%s' % listname):
-        #             r.delete('godb|listmeta|%s' % listname)
-
-        #     # remove all the edit history.
-        #     r.delete('godb|edits|%s' % linkid)
-
-        #     # remove the link itself.
-        #     r.delete('godb|link|%s' % linkid)
+        # import pdb;pdb.set_trace()
+        tools.deletelink(linkid=linkid)
         return self.redirect("/." + returnto)
-
-    
 
     @cherrypy.expose
     def _internal_(self, *args, **kwargs):
@@ -402,9 +388,9 @@ class Root(object):
         return env.get_template(args[0] + ".html").render(**kwargs)
 
     @cherrypy.expose
-    def toplinks(self, n="100"):
+    def toplinks(self, n="40"):
         LOG.info('In /toplinks...')
-        return env.get_template("toplinks.html").render(n=int(n))
+        return env.get_template("toplinks.html").render(numlinks=int(n))
 
     @cherrypy.expose
     def variables(self):

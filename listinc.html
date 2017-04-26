@@ -26,15 +26,7 @@
 
 
 
-
-
-
-
-
-
-
-
-
+  {# this macro is called from the one above #}
   {% macro m_editlink(link, username) -%}
       <div class="pull-right">
         <a
@@ -49,6 +41,17 @@
         href="/_edit_/{{ link.linkid }}{% if username %}?returnto={{ keyword }}{% endif %}"><img border="0" src="/images/edititem.gif"></a>
       </div>
   {%- endmacro %}
+
+
+
+
+
+
+
+
+
+
+
 
   {% macro clickstats(L) -%}
   {% if L.clicks %}

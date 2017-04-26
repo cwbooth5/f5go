@@ -18,7 +18,7 @@
 <div class="span6 column">
 <h4 class="center"><a href="/special">Special Cases</a></h4>
 <table class="table table-striped">
-{% for link in range(15): %}
+{% for link in range(5): %}
     carrots. walruses...{{link}}<br>
 
 {% endfor %}
@@ -26,7 +26,7 @@
 </div>
 
 <div class="span6 column">
-<h4 class="center"><a href="/toplinks?n=100">Recent Top Links</a></h3>
+<h4 class="center"><a href="/toplinks?n=100">Recent Top Redirects</a></h3>
 <table class="table table-striped">
 {% if alltoplinks %}
     {% for idx, item in enumerate(alltoplinks) %}
