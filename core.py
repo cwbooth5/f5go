@@ -558,7 +558,7 @@ class ListOfLinks(Link):
 
     def isGenerative(self):
         """Does it end in a slash?"""
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         return self.name[-1] == "/"
 
     def usage(self):

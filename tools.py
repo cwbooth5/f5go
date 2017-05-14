@@ -63,6 +63,7 @@ def nextlinkid():
 
 def registerclick(linkid=None, listname=None):
     """Increment the click count for either a link ID or a list name."""
+    #TODO: This needs to handle one or two inputs.
     with redisconn() as rconn:
         if linkid:
             rconn.hincrby(name='godb|link|%s' % linkid, key='clicks')
@@ -177,13 +178,15 @@ class Link(object):
         # This could be an add or an update. Works with both.
 
         # URLs all need to be cleaned up.
+        # import pdb;pdb.set_trace()
         testurl = kwargs.get('url')
-        if testurl:
-            sanitized = sanitary(testurl)
-            if sanitized:
-                kwargs['url'] = sanitized
-            else:
-                raise InsaneInput('Entered URL is insane!')
+        kwargs['url'] = testurl
+        # if testurl:
+        #     sanitized = sanitary(testurl)
+        #     if sanitized:
+        #         kwargs['url'] = sanitized
+        #     else:
+        #         raise InsaneInput('Entered URL is insane!')
 
         with redisconn() as rconn:
             if not rconn.exists('godb|link|%s' % self.linkid):
@@ -219,7 +222,8 @@ class ListOfLinks(object):
             # create the new list in redis. Metadata first.
             listmeta = {'behavior': 'freshest',
                         'clicks': 0}
-            rconn.hmset('godb|listmeta|%s' % self.keyword, listmeta)
+
+            rconn.hmset(name='godb|listmeta|%s' % self.keyword, mapping=listmeta)
             
 
             # Mark that link as being edited by the current user.
@@ -237,6 +241,9 @@ class ListOfLinks(object):
         This is adding a number to a set in redis.
 
         return the link ID that was added.
+
+        #TODO: If they type in a new list name and it doesn't exist and they leave the page
+        without creating anything, we leave the init_list metadata in redis. Not good.
         """
         
         # new_id = nextlinkid()  # make a new ID
@@ -274,10 +281,11 @@ class ListOfLinks(object):
         Returns the current behavior.
         Otherwise, returns True if the behavior was changed.
         """
+        # import pdb;pdb.set_trace()
         with redisconn() as rconn:
             listmetaname = 'godb|listmeta|%s' % self.keyword
             if desired:
-                rconn.hset(listmetaname, 'behavior', desired)
+                rconn.hset(name=listmetaname, key='behavior', value=desired)
                 return
             return rconn.hget(name=listmetaname, key='behavior')
 
@@ -359,11 +367,6 @@ def getlistmembership(linkid):
                 results.append(listname)
 
     return results
-
-
-
-
-
 
 
 # new stuff up above this line...
