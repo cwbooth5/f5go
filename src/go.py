@@ -76,7 +76,7 @@ class Root(object):
 
         # redirect to our full hostname to get the user's cookies
         if cherrypy.request.scheme != scheme or cherrypy.request.base.find(MYGLOBALS.cfg_hostname) < 0:
-            fqurl = scheme + "://" + MYGLOBALS.cfg_hostname
+            fqurl = f'{scheme}://{MYGLOBALS.cfg_hostname}'
             fqurl += cherrypy.request.path_info
             if cherrypy.request.query_string:
                 fqurl += "?" + cherrypy.request.query_string
