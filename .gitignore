@@ -3,3 +3,6 @@
 tmp/*
 *egg*
 .tox*
+*.bak
+.python-version
+.cache
