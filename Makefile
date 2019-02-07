@@ -13,6 +13,9 @@ all:py37-image f5go-app
 py37-image:
 	docker build -t py37 -f Dockerfile.py37 .
 
+redis:
+	docker build -t redis -f Dockerfile.redis .
+
 # requirements.txt:
 # 	$(CHECK_PIP_COMPILE)
 # 	$(PIP_COMPILE) --output-file src/requirements.txt src/requirements.in
