@@ -1,19 +1,21 @@
 {% extends "base.html" %}
 
-{% from "listinc.html" import renderlink with context %}
-{% set username = tools.getSSOUsername(False) %}
+{% from "listinc.html" import m_linkrender with context %}
+{% set username = toplinker %}
 
 {% block keyword %}toplinks{% endblock keyword %}
-{% block title %}Top {{ n }} go/ Links{% endblock title %}
+{% block title %}Top {{ numlinks }} go/ Links{% endblock title %}
 
 {% block body %}
 
 <div class="row-fluid">
-<h3 class="center">Top {{ n }} Links</h3>
+<h3 class="center">Top {{ numlinks }} Links</h3>
 <div class="span12 column">
 <table class="table table-striped">
-  {% for idx, link in enumerate(tools.byClicks(MYGLOBALS.g_db.getNonFolders())[:n|int]): %}
-    {{ renderlink(idx+1, link, username) }}
+{% set toplinks = tools.toplinks(numlinks) %}
+{{ toplinks }}
+  {% for idx, link in enumerate(toplinks): %}
+    {{ m_linkrender(idx+1, link, username) }}
   {% endfor %}
 </table>
 </div>

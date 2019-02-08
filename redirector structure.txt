@@ -1,0 +1,56 @@
+self.lists
+
+ListOfLinks(linkid=19,
+			name=msn,
+			redirect=freshest,
+
+			links=[
+				   Link(linkid=18,
+				    	url=http://www.msn.com,
+				    	title=em es enn,
+				    	edits=[(1461363604.086113, 'testuser')],
+
+				    	lists=[ListOfLinks(linkid=19,
+				    						name=msn,
+				    						redirect=freshest,
+				    						links=[...]),
+				    						ListOfLinks(linkid=20,
+				    						    		name=gloop,
+				    						    		redirect=freshest,
+				    						    		links=[
+				    						    				Link(linkid=18,
+				    						    					 url=http://www.msn.com,
+				    						    					 title=em es enn,
+				    						    					 edits=[(1461363604.086113, 'testuser')], lists=[...])])])])
+
+a list of dictionaries
+godb|list|19: {
+				name: msn
+				behavior: freshest,
+				title: 'this is a title',
+				url: 'http://msn.com',
+				clicks?: 28,
+				owner: testuser
+}
+
+zset for all edits
+godb|edits|msn: (1461363604.086113, testuser), (1461379806.392819, anotheruser)
+
+regular set for showing membership of a given list to other lists
+godb|memberof|msn: ('microsoft', 'msnetwork')
+
+
+global combinations:
+
+zset for clicks
+godb|clicks: (28, msn), (39, dice), (99, fork)
+
+regular set for links by URL:
+godb|linksbyurl: (www.msn.com, www.derp.com)
+
+------
+data structure for next link ID: simple monotonic integer.
+godb|nextlinkid: 91
+-----
+A list can have many links.
+Each link can be

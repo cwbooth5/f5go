@@ -1,18 +1,30 @@
 {% extends "base.html" %}
 {% from "listinc.html" import clickstats %}
 
-<!-- {% set username = tools.getSSOUsername() %} -->
+{% set username = 'editlink'%}
 
-{% block title %}{% if L.linkid == 0 %}Add Link{% else %}Edit go link #{{ L.linkid }}{% endif %}{% endblock title %}
-{% block keyword %}{% if L.linkid %}_edit_/{{ L.linkid }}{% else %}_add_{% endif %}{% endblock keyword %}
+{% block title %}
+  {% if linkobj.clicks < 1 %}
+    Add Link
+  {% else %}
+    Edit go link #{{ linkobj.linkid }}
+  {% endif %}
+{% endblock title %}
+
+{% block keyword %}
+  {% if linkobj.clicks >= 1 %}_edit_/{{ linkobj.name }}
+  {% else %}_add_{% endif %}
+{% endblock keyword %}
 
 {% block body %}
+This is editlink.html
+{{ linkobj|pprint(true) }}
 <div class="row-fluid">
 
 <div class="column span6">
 
-  {% if L.linkid != 0 %}
-  <a class="pull-right" style="margin-right: .25em;" href="/_delete_/{{ L.linkid }}?returnto={{ returnto }}">DELETE</a>
+  {% if linkobj.clicks > 1 %}
+  <a class="pull-right" style="margin-right: .25em;" href="/_delete_/{{ linkobj.linkid }}?returnto={{ returnto }}">DELETE</a>
   {% endif %}
 
 <div class="inner">
@@ -21,8 +33,8 @@
     <input type="hidden" name="returnto" value="{{ returnto|escapekeyword }}"/>
   {% endif %}
 
-  {% if L.linkid != 0 %}
-    <input type="hidden" name="linkid" value="{{ L.linkid }}"/>
+  {% if linkobj.linkid %}
+    <input type="hidden" name="linkid" value="{{ linkobj.linkid }}"/>
   {% endif %}
 
   <table class="table linkedit">
@@ -35,7 +47,7 @@
     <tr>
       <td>Title</td>
       <td>
-        <input type="text" name="title" maxlength="140" size="50" value="{{ title or L.title }}"/>
+        <input type="text" name="title" maxlength="140" size="50" value="{% if linkobj.title != 'None' %}{{ linkobj.title }}{% endif %}"/>
       </td>
       <td class="help"></td>
     </tr>
@@ -43,23 +55,27 @@
     <tr>
       <td>URL</td>
       <td>
-        <textarea name="url" rows="4" cols="50">{{ url or L._url }}</textarea>
+        <textarea name="url" rows="4" cols="50">{% if linkobj.url != 'None' %}{{ linkobj.url }}{% endif %}</textarea>
       </td>
     </tr>
 
    <tr>
      <td>Lists</td>
      <td>
-     {% set listnames = L.listnames() or list(lists) %}
+     {# Get all the lists this link exists within. #}
+     <input type="checkbox" name="lists" checked="checked" value="{{ linkobj.name }}">
+       <a href="/.{{ linkobj.name|escapekeyword }}">{{ linkobj.name }}</a>
+     </input>
+     {% set listnames = tools.getlistmembership(linkobj.linkid) %}
       {% for t in listnames %}
-      {% set K = MYGLOBALS.g_db.getList(t, create=False) %}
-      {% set flDirect = K and K.goesDirectlyTo(L) %}
-       <input type="checkbox" name="lists" checked="checked" value="{{ t }}">
-       <a href="/.{{ t|escapekeyword }}">
-       {% if flDirect %}<b>{% else %}<i>{% endif %}
-       {{ t }}
-       {% if flDirect %}</b>{% else %}</i>{% endif %}
-       </a></input>
+        {# get all additional lists it is a member of #}
+        {% if t != linkobj.name %}
+         <input type="checkbox" name="lists" checked="checked" value="{{ t }}">
+         <a href="/.{{ t|escapekeyword }}">
+         {{ t }}
+         </a></input>
+         
+       {% endif %}
        <br/>
       {% endfor %}
       add to: <input type="text" name="otherlists" value="{{ otherlists }}"/> <i>(space-separated)</i>
@@ -79,7 +95,7 @@
 
 <div class="column span6">
 <div class="inner">
-      {% include "vartable.html" %}
+      {#{% include "vartable.html" %} #}
 <p>also see <a href="http://docs.python.org/2/library/string.html#format-specification-mini-language">Python Format Syntax</a> for variable formatting
 and <a href="http://docs.python.org/library/re.html#regular-expression-syntax">Python Regex Syntax</a> for regexes
 </div>
@@ -87,10 +103,10 @@ and <a href="http://docs.python.org/library/re.html#regular-expression-syntax">P
 
 </div>
 
-{{ clickstats(L) }}
+{# {{ clickstats(L) }} #}
 
 <br/>edits:
-{% for editTime, editor in L.edits %}
+{% for editor, editTime in linkobj.edits %}
 <br/>&mdash;&nbsp;{{ editTime|time_t }} by {{ editor }}
 {% endfor %}
 

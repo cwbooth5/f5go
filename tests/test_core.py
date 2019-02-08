@@ -11,6 +11,6 @@ import core
 
 
 def test_nextlinkid():
-    """The link IDs are started at 1."""
+    """The link ID should come back as a number higher than zero."""
     mydb = core.LinkDatabase()
-    assert mydb._nextlinkid == 1
+    assert mydb._nextlinkid > 0

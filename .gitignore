@@ -5,4 +5,7 @@ tmp/*
 .tox*
 *.bak
 .python-version
-.cache
+.idea*
+.cache*
+*.rdb
+*.log
