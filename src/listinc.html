@@ -13,7 +13,7 @@
         </div>
       </a>
       <div class="shallow span8"><a href="{{ tools.canonicalUrl(link.url) }}"</a>{{ link.title }}</div>
-      
+
     </div>
       <div class="fineprint shallow meta text">
       </div>
@@ -29,6 +29,7 @@
   {# this macro is called from the one above #}
   {% macro m_editlink(link, username) -%}
       <div class="pull-right">
+        <p>{{ link }}</p>
         <a
 
       {# note that the <a tag is not closed here. That is intentional.#}
@@ -38,7 +39,7 @@
       {% else %}
         title="edit"
       {% endif %}
-        href="/_edit_/{{ link.linkid }}{% if username %}?returnto={{ keyword }}{% endif %}"><img border="0" src="/images/edititem.gif"></a>
+        href="/_edit_/{{ link.linkid }}{% if username %}?returnto={{ keyword }}{% endif %}"><img border="0" src="/images/edititem.png"></a>
       </div>
   {%- endmacro %}
 

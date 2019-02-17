@@ -2,3 +2,4 @@ cherrypy
 pylint
 jinja2
 pip-tools
+redis

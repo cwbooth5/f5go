@@ -60,7 +60,7 @@ def populate_garbage():
         # make a mock database.
         # blow everything away.
 
-        print 'flush database..'
+        print('flush database..')
         r.flushall()
 
         # make new lists, each with a single link.
@@ -70,7 +70,7 @@ def populate_garbage():
                            'title': 'placeholder',
                            'url': 'http://www.%s.com' % name,
                            'owner': username,
-                           'clicks': random.choice(xrange(200))}
+                           'clicks': random.choice(range(200))}
             r.hmset('godb|link|%s' % linkid, boilerplate)
 
             # Mark that link as being edited by the current user.
@@ -82,14 +82,14 @@ def populate_garbage():
             existinghash = r.hkeys('godb|listmeta|%s' % name)
             if not existinghash:
                 template = {'behavior': 'freshest',
-                            'clicks': random.choice(xrange(200))}
+                            'clicks': random.choice(range(200))}
                 r.hmset('godb|listmeta|%s' % name, template)
 
                 # now add the link ID to this new list.
                 r.sadd('godb|list|%s' % name, linkid)
             # import pdb; pdb.set_trace()
-            print "created: %s with ID %s" % (name, linkid)
-            print "done."
+            print("created: %s with ID %s" % (name, linkid))
+            print("done.")
 
         # randomize some stuff within the lists.
         # Add a couple other links to each list.
@@ -101,8 +101,8 @@ def populate_garbage():
         for listkey in allkeys:
             selection = random.choice(allkeys)
             listid = selection.split('|')[-1]
-            print "random list to modify: %s " % listkey
-            for x in range(random.choice(xrange(15))):
+            print("random list to modify: %s " % listkey)
+            for x in range(random.choice(range(15))):
                 # push the random number onto the list of links.
                 targetkey = random.choice(all_links)
                 targetlistid = targetkey.split('|')[-1]
@@ -111,7 +111,7 @@ def populate_garbage():
 # populate_garbage()
 
 with tools.redisconn() as r:
-    print 'flush database..'
+    print('flush database..')
     r.flushall()
 
 

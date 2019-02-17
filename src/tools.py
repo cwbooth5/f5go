@@ -1,6 +1,8 @@
 """Smaller helper functions and tools for the Go Redirector"""
 
 import cgi
+from dataclasses import dataclass
+from typing import Any
 import re
 import string
 import jinja2
@@ -12,7 +14,7 @@ import time
 import random
 import datetime
 import base64
-import configParser
+import configparser
 import redis
 from contextlib import contextmanager
 from collections import namedtuple
@@ -39,8 +41,12 @@ class InsaneInput(Exception):
 
 @contextmanager
 def redisconn():
-    rconn = redis.Redis(host='localhost', port=6379, db=0)
-    yield rconn
+    rconn = redis.Redis(host='f5go-redis', port=6379, db=0, encoding='utf-8')
+    try:
+        yield rconn
+    except:
+        print("Error connecting to redis backend!")
+        raise
 
 
 def clickstats(linkname):
@@ -54,23 +60,21 @@ def nextlinkid():
     with redisconn() as r:
         nextid = r.get('godb|nextlinkid')
         if nextid is None:
-            # Nothing in redis. Set it at 1, return 1.
-            nextid = r.set('godb|nextlinkid', 1)
+            r.set('godb|nextlinkid', 1)  # Set it at 1, return 1.
             return 1
-
         r.incr('godb|nextlinkid')
-        return nextid
+        return int(nextid)
 
 def registerclick(linkid=None, listname=None):
     """Increment the click count for either a link ID or a list name."""
     with redisconn() as rconn:
         if linkid:
-            rconn.hincrby(name='godb|link|%s' % linkid, key='clicks')
+            rconn.hincrby(name=f'godb|link|{linkid}', key='clicks')
             return True
         if listname:
-            rconn.hincrby(name='godb|listmeta|%s' % listname.lstrip('.'), key='clicks')
+            rconn.hincrby(name=f'godb|listmeta|{listname.lstrip(".")}', key='clicks')
             return True
-        raise EnvironmentError('specify linkid or listname!')
+        raise InsaneInput('specify linkid or listname!')
 
 
 def getedits(link_id, mostrecent=False):
@@ -94,13 +98,68 @@ def getlink(linkname):
     with redisconn() as r:
         all_links = r.keys('godb|link|*')
         for target in all_links:
-            if r.hget(target, 'name') == linkname:
+            target = target.decode('utf-8')
+            if r.hget(target, 'name').decode('utf-8') == linkname:
                 vals = r.hgetall(target)  # Grab all keys in the hash.
-                lid = target.split('|')[-1]  # This is the link ID off the end of the hash name.
-                ourlink = Link(linkid=int(lid), url=vals['url'], title=vals['title'],
-                               owner=vals['owner'], name=vals['name'], clicks=int(vals['clicks']), edits=getedits(lid))
+                vals_cleaned = recode_dict(subject=vals)
+                # vals_cleaned = RecodedLink(**vals)
+                lid = int(target.split('|')[-1])  # This is the link ID off the end of the hash name.
+                ourlink = Link(linkid=lid, url=vals_cleaned['url'], title=vals_cleaned['title'],
+                               owner=vals_cleaned['owner'], name=vals_cleaned['name'], clicks=int(vals_cleaned['clicks']), edits=getedits(lid))
                 return ourlink
         # return None
+
+@dataclass
+class RecodedLink:
+    name: str
+    title: str
+    url: str
+    owner: str
+    clicks: Any
+
+    def __post_init__(self):
+        '''The clicks field needs to be an integer.'''
+        cleaned = {}
+        for k, v in kwargs.items():
+            try:
+                key_decoded = k.decode('utf-8')
+            except AttributeError:
+                key_decoded = k  # already decoded
+            try:
+                val_decoded = v.decode('utf-8')
+            except AttributeError:
+                val_decoded = v
+            cleaned[key_decoded] = val_decoded
+            # if the value needs to be an integer, cast it now.
+            try:
+                cleaned[key_decoded] = int(val_decoded)
+            except ValueError:
+                pass
+        for k, v in cleaned.items():
+            self.k = v
+
+
+def recode_dict(subject):
+    """The datastructure coming back from redis calls encodes everything in byte strings
+    so we have to convert dictionary keys back to the types we need.
+    """
+    cleaned = {}
+    for k, v in subject.items():
+        try:
+            key_decoded = k.decode('utf-8')
+        except AttributeError:
+            key_decoded = k  # already decoded
+        try:
+            val_decoded = v.decode('utf-8')
+        except AttributeError:
+            val_decoded = v
+        cleaned[key_decoded] = val_decoded
+        # if the value needs to be an integer, cast it now.
+        try:
+            cleaned[key_decoded] = int(val_decoded)
+        except ValueError:
+            pass
+    return cleaned
 
 
 def getlistoflinks(linkname):
@@ -111,8 +170,6 @@ def getlistoflinks(linkname):
         for linkid in rconn.smembers('godb|list|%s' % linkname):
             results[linkid] = rconn.hgetall('godb|link|%s' % linkid)
     return results
-
-
 
 
 def editlink(linkid, username, prune=None, *args, **kwargs):
@@ -129,8 +186,9 @@ def editlink(linkid, username, prune=None, *args, **kwargs):
     """
     epoch_time = float(time.time())
     # registerclick(linkid=linkid)
+    # breakpoint()
     with redisconn() as r:
-        r.zadd('godb|edits|%s' % linkid, username, epoch_time)
+        r.zadd(name=f'godb|edits|{linkid}', mapping={username: epoch_time})
 
         hashname = 'godb|link|%s' % linkid
         if kwargs.get('title'):
@@ -154,9 +212,9 @@ def editlink(linkid, username, prune=None, *args, **kwargs):
                 if not r.sismember('godb|list|%s' % extralist, linkid):
                     r.sadd('godb|list|%s' % extralist, linkid)
 
-class Link(object):
+class Link:
     def __init__(self, linkid):
-        self.linkid = linkid
+        self.linkid = int(linkid)
         self.boilerplate = {'name': 'somename',
                             'title': None,
                             'url': None,
@@ -184,26 +242,36 @@ class Link(object):
                 kwargs['url'] = sanitized
             else:
                 raise InsaneInput('Entered URL is insane!')
+        # breakpoint()
 
         with redisconn() as rconn:
             if not rconn.exists('godb|link|%s' % self.linkid):
-                rconn.hmset('godb|link|%s' % self.linkid,
-                            self.boilerplate)
+                # TODO: boilerplate is a dict..and we store as a string??
 
-            for key, val in kwargs.iteritems():
+                for k, v in self.boilerplate.items():
+                    #TODO, hack, do this earlier..
+                    if v is None:
+                        if k in ['url', 'title']:
+                            self.boilerplate[k] = ""
+                        else:
+                            self.boilerplate[k] = "blankness"
+                print(self.boilerplate)
+                rconn.hmset(f'godb|link|{self.linkid}', self.boilerplate)
+
+            for key, val in kwargs.items():
                 # Check if it's a valid field.
                 if key in ['name', 'title', 'url', 'owner', 'clicks']:
                     rconn.hset('godb|link|%s' % self.linkid, key, val)
             # TODO, edits need to be on the list of links too.
             # run the edit function
             epoch_time = float(time.time())
-            rconn.zadd('godb|edits|%s' % self.linkid, 'usergo', epoch_time)
+            rconn.zadd(name=f'godb|edits|{self.linkid}', mapping={'usergo': epoch_time})
 
 
 class ListOfLinks(object):
     def __init__(self, keyword):
         self.keyword = keyword
-        self.listname = 'godb|list|%s' % self.keyword
+        self.listname = f'godb|list|{self.keyword}'
 
     def exists(self):
         """Return True if this list of links already exists in the database."""
@@ -219,8 +287,7 @@ class ListOfLinks(object):
             # create the new list in redis. Metadata first.
             listmeta = {'behavior': 'freshest',
                         'clicks': 0}
-            rconn.hmset('godb|listmeta|%s' % self.keyword, listmeta)
-
+            rconn.hmset(f'godb|listmeta|{self.keyword}', listmeta)
 
             # Mark that link as being edited by the current user.
             # epoch_time = float(time.time())
@@ -238,7 +305,7 @@ class ListOfLinks(object):
 
         return the link ID that was added.
         """
-
+        assert isinstance(linkid, int)
         # new_id = nextlinkid()  # make a new ID
 
         # bring the list into existence if this is the first link.
@@ -247,9 +314,9 @@ class ListOfLinks(object):
 
         # if not rconn.sismember(self.listname, linkid):
         with redisconn() as rconn:
-            rconn.sadd(self.listname, int(linkid))
+            rconn.sadd(self.listname, linkid)
 
-        return int(linkid)
+        return linkid
 
     def removelink(self, linkid):
         """Remove a link from the list.
@@ -257,14 +324,14 @@ class ListOfLinks(object):
         If the list is empty after the removal, the list is removed completely.
         """
         # run the edit function on the list. #TODO
-
+        assert isinstance(linkid, int)
         with redisconn() as rconn:
             rconn.srem(self.listname, linkid)
 
         # If the length of the list is empty, delete the keyword from redis.
         if len(self.members()) == 0:
             with redisconn() as rconn:
-                listmetaname = 'godb|listmeta|%s' % self.keyword
+                listmetaname = f'godb|listmeta|{self.keyword}'
                 rconn.delete(self.listname, listmetaname)
 
     def behavior(self, desired=None):
@@ -275,17 +342,15 @@ class ListOfLinks(object):
         Otherwise, returns True if the behavior was changed.
         """
         with redisconn() as rconn:
-            listmetaname = 'godb|listmeta|%s' % self.keyword
+            listmetaname = f'godb|listmeta|{self.keyword}'
             if desired:
                 rconn.hset(listmetaname, 'behavior', desired)
-                return
-            return rconn.hget(name=listmetaname, key='behavior')
+            return rconn.hget(name=listmetaname, key='behavior').decode('utf-8')
 
     def listmeta(self):
         """return dictionary of list metadata"""
         with redisconn() as rconn:
-            return rconn.hgetall('godb|listmeta|%s' % self.keyword)
-
+            return rconn.hgetall(f'godb|listmeta|{self.keyword}')
 
     def members(self):
         # return all link objects under this keyword/list.
@@ -300,24 +365,18 @@ class ListOfLinks(object):
 def deletelink(linkid):
     """Remove all traces of a link using the link ID."""
     with redisconn() as rconn:
-        rconn.delete('godb|link|%s' % linkid)
-        rconn.delete('godb|edits|%s' % linkid)
+        rconn.delete(f'godb|link|{linkid}')
+        rconn.delete(f'godb|edits|{linkid}')
         all_keys = rconn.keys('godb|list|*')
         # remove the link from any list it lives within.
         for linklist in all_keys:
             rconn.srem(linklist, linkid)
 
-<<<<<<< HEAD:src/tools.py
-config = configparser.ConfigParser()
-config.read('go.cfg')
-=======
->>>>>>> redis-integration:tools.py
-
 def addtolist(keyword, link_id):
     """Make this idempotent. Add to a list."""
     with redisconn() as r:
         # now add the link ID to this new list.
-        r.sadd('godb|list|%s' % keyword, link_id)
+        r.sadd(f'godb|list|{keyword}', link_id)
     registerclick(listname=keyword)
 
 
@@ -332,11 +391,11 @@ def toplinks(count=None):
     return the number of links they ask for, or everything if they don't specify.
     """
     # list of dicts
-    print count
+    print(count)
     blabber = []
     with redisconn() as r:
-        allkeys = r.keys('godb|listmeta|*')
-        for key in allkeys:
+        for key in [x.decode('utf-8') for x in r.keys('godb|listmeta|*')]:
+            # breakpoint()
             listname = key.split('|')[-1]
             listclicks = r.hget(key, 'clicks')
             blabber.append((listname, int(listclicks)))
@@ -358,13 +417,10 @@ def getlistmembership(linkid):
         all_lists = r.keys('godb|list|*')
         for key in all_lists:
             if str(linkid) in r.smembers(key):
-                listname = key.split('|')[-1]
+                listname = key.split(b'|')[-1]
                 results.append(listname)
 
     return results
-
-
-
 
 
 
@@ -391,7 +447,7 @@ def sanitary(s):
     """
 
     s = s.lower()
-    sanechars = string.lowercase + string.digits + "-."
+    sanechars = string.ascii_lowercase + string.digits + "-."
     # Search through everything but the last character.
     for a in s[:-1]:
         if a not in sanechars:
@@ -512,23 +568,23 @@ def getCurrentEditableUrlQuoted():
 def getSSOUsername(redirect=True):
     """ """
     return 'testuser'
-    if cherrypy.request.base != cfg_urlEditBase:
-        if not redirect:
-            return None
-        if redirect is True:
-            redirect = getCurrentEditableUrl()
-        elif redirect is False:
-            raise cherrypy.HTTPRedirect(redirect)
+    # if cherrypy.request.base != cfg_urlEditBase:
+    #     if not redirect:
+    #         return None
+    #     if redirect is True:
+    #         redirect = getCurrentEditableUrl()
+    #     elif redirect is False:
+    #         raise cherrypy.HTTPRedirect(redirect)
 
-    if "issosession" not in cherrypy.request.cookie:
-        if not redirect:
-            return None
-        if redirect is True:
-            redirect = cherrypy.url(qs=cherrypy.request.query_string)
+    # if "issosession" not in cherrypy.request.cookie:
+    #     if not redirect:
+    #         return None
+    #     if redirect is True:
+    #         redirect = cherrypy.url(qs=cherrypy.request.query_string)
 
-        raise cherrypy.HTTPRedirect(cfg_urlSSO + urllib.parse.quote(redirect, safe=":/"))
+    #     raise cherrypy.HTTPRedirect(cfg_urlSSO + urllib.parse.quote(redirect, safe=":/"))
 
-    sso = urllib.parse.unquote(cherrypy.request.cookie["issosession"].value)
-    # session = list(map(base64.b64decode, string.split(sso, "-")))
-    session = list(map(base64.b64decode, sso.split("-")))
-    return session[0]
+    # sso = urllib.parse.unquote(cherrypy.request.cookie["issosession"].value)
+    # # session = list(map(base64.b64decode, string.split(sso, "-")))
+    # session = list(map(base64.b64decode, sso.split("-")))
+    # return session[0]

@@ -1,5 +1,6 @@
 """Core elements of the Go Redirector"""
 
+from dataclasses import dataclass
 import configparser
 import pickle
 import os
@@ -63,9 +64,9 @@ class LinkDatabase:
         """Attempt to load the database defined at cfg_fnDatabase. Create a
         new one if the database doesn't already exist.
         """
-
+        # breakpoint()
         if cfg_fnDatabase == 'redis':
-            return True
+            return LinkDatabase()
 
         try:
             print("Loading DB from %s" % db)
@@ -319,7 +320,7 @@ class LinkDatabase:
                 elif a == "link":
                     L = Link(self.nextlinkid())
                     L._import(b)
-                    self._addLink(L)
+                    self.addLink(url=L._url, title=L.title, lists=L.lists)
                 elif a == "list":
                     # listname, rest = string.split(b, " ", 1)
                     listname, rest = b.split(maxsplit=1)
@@ -337,7 +338,7 @@ class LinkDatabase:
         self.save()
 
 
-class Clickable(object):
+class Clickable:
     def __init__(self):
         self.archivedClicks = 0
         self.clickData = {}
@@ -475,9 +476,9 @@ class Link(Clickable):
         timenow = time.time()
         self.edits.append((timenow, editor))
         # redis implementation - list
-        key = 'godb|edits|%s' % self.linkid
+        key = f'godb|edits|{self.linkid}'
         with tools.redisconn() as r:
-            r.lpush(key, '%s|%s' % (timenow, editor))
+            r.lpush(key, f'{timenow}|{editor}')
 
     def lastEdit(self):
         if not self.edits:
@@ -562,7 +563,6 @@ class ListOfLinks(Link):
 
     def isGenerative(self):
         """Does it end in a slash?"""
-        import pdb; pdb.set_trace()
         return self.name[-1] == "/"
 
     def usage(self):
@@ -702,7 +702,11 @@ class RegexList(ListOfLinks):
         ListOfLinks._import(self, rest)
 
 
-class MyGlobals(object):
+class MyGlobals:
+    """
+    This loads the link database and makes it available everywhere via
+    MYGLOBALS.g_db (usually).
+    """
 
     g_db = LinkDatabase.load()
 
@@ -711,8 +715,5 @@ class MyGlobals(object):
 
     def __repr__(self):
         return '%s(hnd=%s)' % (self.__class__.__name__, self.db_hnd)
-
-    def set_handle(self, hnd):
-        self.db_hnd = hnd
 
 MYGLOBALS = MyGlobals()

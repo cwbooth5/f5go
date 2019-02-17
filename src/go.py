@@ -37,7 +37,7 @@ except configparser.NoOptionError:
     MYGLOBALS.cfg_hostname = socket.gethostbyname(socket.gethostname())
 
 MYGLOBALS.cfg_urlSSO = config.get('goconfig', 'cfg_urlSSO')
-MYGLOBALS.cfg_urlEditBase = "https://" + MYGLOBALS.cfg_hostname
+MYGLOBALS.cfg_urlEditBase = f'https://{MYGLOBALS.cfg_hostname}'
 MYGLOBALS.cfg_listenPort = int(config.get('goconfig', 'cfg_listenPort'))
 
 LOG = logging.getLogger(__name__)
@@ -56,19 +56,19 @@ LOG_CONF = {
     },
     'handlers': {
         'default': {
-            'level':'INFO',
-            'class':'logging.StreamHandler',
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
             'formatter': 'standard',
             'stream': 'ext://sys.stdout'
         },
         'cherrypy_console': {
-            'level':'INFO',
-            'class':'logging.StreamHandler',
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
             'formatter': 'void',
             'stream': 'ext://sys.stdout'
         },
         'cherrypy_access': {
-            'level':'INFO',
+            'level': 'INFO',
             'class': 'logging.handlers.RotatingFileHandler',
             'formatter': 'void',
             'filename': 'access.log',
@@ -77,7 +77,7 @@ LOG_CONF = {
             'encoding': 'utf8'
         },
         'cherrypy_error': {
-            'level':'INFO',
+            'level': 'INFO',
             'class': 'logging.handlers.RotatingFileHandler',
             'formatter': 'void',
             'filename': 'errors.log',
@@ -93,7 +93,7 @@ LOG_CONF = {
         },
         'db': {
             'handlers': ['default'],
-            'level': 'DEBUG' ,
+            'level': 'DEBUG',
             'propagate': False
         },
         'cherrypy.access': {
@@ -128,7 +128,7 @@ def config_jinja():
     return env
 
 
-class Root(object):
+class Root:
     env = config_jinja()
     def redirect(self, url, status=307):
         """HTTP 307 redirect to another URL."""
@@ -142,7 +142,6 @@ class Root(object):
         return env.get_template("notfound.html").render(message=msg)
 
     def redirectIfNotFullHostname(self, scheme=None):
-
         if scheme is None:
             scheme = cherrypy.request.scheme
 
@@ -156,7 +155,7 @@ class Root(object):
 
     def redirectToEditLink(self, **kwargs):
         if "linkid" in kwargs:
-            url = "/_edit_/%s" % kwargs["linkid"]
+            url = f'/_edit_/{kwargs["linkid"]}'
             del kwargs["linkid"]
         else:
             url = "/_add_"
@@ -195,7 +194,7 @@ class Root(object):
         self.redirectIfNotFullHostname()
 
         if "keyword" in kwargs:
-            return self.redirect("/" + kwargs["keyword"])
+            return self.redirect(f'/{kwargs["keyword"]}')
 
         return env.get_template('index.html').render(now=tools.today())
 
@@ -235,6 +234,9 @@ class Root(object):
         #TODO this is where we would sanitize whatever they entered in the box.
         thelist = tools.ListOfLinks(keyword)
         tmplList = env.get_template('list.html')
+        breakpoint()
+        pass
+        pass
         return tmplList.render(thelist=thelist, keyword=keyword)
 
         # check to see if it's an existing link.
@@ -261,7 +263,8 @@ class Root(object):
         LOG.debug('in /special...')
         LL = ListOfLinks(linkid=-1)
         LL.name = "Smart Keywords"
-        LL.links = MYGLOBALS.g_db.getSpecialLinks()
+        breakpoint()
+        LL.links = MYGLOBALS.g_db.getSpecialLinks()  #BUG: This blows up if no links exist.
 
         env.globals['MYGLOBALS.g_db'] = MYGLOBALS.g_db
         return env.get_template('list.html').render(L=LL, keyword="special")
@@ -289,7 +292,7 @@ class Root(object):
         """This adds a link ID to a list. The contents of the link
         are created in _modify_
         """
-        LOG.debug('in /_add_, args=%s, kwargs=%s' % (args, kwargs))
+        LOG.debug(f'in /_add_, args={args}, kwargs={kwargs}')
         # _add_/tag1/tag2/tag3
         keyword = args[0]  # There has to be a better way!
 
@@ -298,32 +301,35 @@ class Root(object):
 
         # This can't attach the ID to the list yet. do that on submit.
         link_id = tools.nextlinkid()
-
         # Create the link now.
         inputs = {'name': keyword}
         ThisLink = tools.Link(linkid=link_id)
         ThisLink.modify(**inputs)
         ourlink = tools.getlink(linkname=keyword)
+
         return env.get_template("editlink.html").render(linkobj=ourlink, returnto=(args and args[0] or None), **kwargs)
 
 
     @cherrypy.expose
-    def _modify_(*args, **kwargs):
+    def _modify_(self, **kwargs):
+    # def _modify_(*args, **kwargs):
         """When someone adds a link to an existing list, this runs.
 
         The boilerplate link is now populated in the DB with data.
         """
 
-        LOG.debug('in /_modify_, kwargs=%s' % kwargs)
+        # sanitize the dictionary.
+        link_details = tools.recode_dict(kwargs)
 
         # Tack it onto the list of links.
-        this_lol = tools.ListOfLinks(keyword=kwargs['lists'])
+        # breakpoint()
+        this_lol = tools.ListOfLinks(keyword=link_details['lists'])
 
         # Idempotent, doesn't matter if we keep adding the same linkid.
-        this_lol.addlink(kwargs['linkid'])
+        this_lol.addlink(link_details['linkid'])
 
         # Using the form data entered by the user, populate the link.
-        the_link = tools.Link(linkid=kwargs['linkid'])
+        the_link = tools.Link(linkid=link_details['linkid'])
         # import pdb;pdb.set_trace()
         the_link.modify(**kwargs)
 
